@@ -18,6 +18,7 @@ ui_*.h
 qrc_*.cpp
 *.pro.user
 *.pro.user.*
+CMakeLists.txt.user
 *.autosave
 
 # CMake 缓存
