@@ -13,8 +13,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #     扫描所有源文件中的 Q_OBJECT 宏，自动生成 moc_*.cpp
 set(CMAKE_AUTOMOC ON)
 
-
-
 # 5. 查找并加载 Qt6 库。REQUIRED 表示如果找不到则报错终止；
 #    COMPONENTS 后面列出了项目具体依赖的 5 个 Qt 模块
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets SerialPort Network Sql)
@@ -32,6 +30,8 @@ qt_add_executable(PulseQt
     src/communication/SerialChannel.cpp
     include/TcpChannel.h
     src/communication/TcpChannel.cpp
+    include/ChannelManager.h
+    src/communication/ChannelManager.cpp
 )
 
 # 7. 为 PulseQt 程序添加私有的头文件搜索路径（PRIVATE 表示这些头文件仅本项目内部使用）
