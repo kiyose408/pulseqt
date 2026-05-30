@@ -27,6 +27,11 @@ qt_add_executable(PulseQt
     include/MainWindow.h
     include/Logger.h
     src/utils/Logger.cpp
+    include/IChannel.h
+    include/SerialChannel.h
+    src/communication/SerialChannel.cpp
+    include/TcpChannel.h
+    src/communication/TcpChannel.cpp
 )
 
 # 7. 为 PulseQt 程序添加私有的头文件搜索路径（PRIVATE 表示这些头文件仅本项目内部使用）
