@@ -32,6 +32,9 @@ qt_add_executable(PulseQt
     src/communication/TcpChannel.cpp
     include/ChannelManager.h
     src/communication/ChannelManager.cpp
+    include/Frame.h
+    include/ProtocolDecoder.h
+    src/protocol/ProtocolDecoder.cpp
 )
 
 # 7. 为 PulseQt 程序添加私有的头文件搜索路径（PRIVATE 表示这些头文件仅本项目内部使用）
