@@ -4,6 +4,11 @@
 DataTableModel::DataTableModel(QObject *parent)
     : QAbstractTableModel(parent)
 {
+    m_throttleTimer = new QTimer(this);
+    m_throttleTimer->setInterval(100);
+    connect(m_throttleTimer, &QTimer::timeout,
+            this, &DataTableModel::onThrottleTimer);
+    m_throttleTimer->start();
 }
 
 void DataTableModel::setDataBuffer(DataBuffer *buffer)
@@ -19,12 +24,9 @@ void DataTableModel::setDataBuffer(DataBuffer *buffer)
     connect(m_buffer, &DataBuffer::bufferUpdated,
             this, &DataTableModel::onBufferUpdated,
             Qt::QueuedConnection);      //队列连接避免死锁
-    // ═══════════════════════════════════════════════
     // 目的 ②：立即加载已有数据
-    //   可能 buffer 里已经有数据了（先采集后打开界面），
-    //   手动触发一次刷新，把存量数据显示出来
-    // ═══════════════════════════════════════════════
-    onBufferUpdated(m_buffer->size());
+    m_dirty = true;
+    onThrottleTimer();   // 首次立即刷新，不走节流等待
 
 }
 
@@ -90,20 +92,17 @@ QVariant DataTableModel::headerData(int section, Qt::Orientation orientation, in
 void DataTableModel::onBufferUpdated(int count)
 {
     Q_UNUSED(count);
+    m_dirty = true;   // 只标记，不立即刷新（节流到定时器）
+}
 
-    if(!m_buffer) return;
+void DataTableModel::onThrottleTimer()
+{
+    if (!m_dirty || !m_buffer) return;
+    m_dirty = false;
 
-    //从环形缓冲拿数据副本（内部有锁，但现在是队列连接，安全）
     QVector<DataPoint> snap = m_buffer->snapshot();
-
-    //通知试图：整个模型即将被替换
     beginResetModel();
-
-    m_snapshot = std::move(snap);       //替换内部副本
-
-    //通知视图：模型替换完成，重新绘制
+    m_snapshot = std::move(snap);
     endResetModel();
-
-    //通知 MainWindow：数据已刷新 → 自动滚到底部
     emit dataRefreshed();
 }

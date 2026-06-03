@@ -1,21 +1,22 @@
-"""TCP 数据帧模拟器 — 供 T006 端到端集成测试使用
+"""TCP 曲线测试模拟器 — 正弦波 + 锯齿波 + 方波，方便观察曲线形态
 
-发送符合 PulseQt 协议的二进制数据帧：
-  3 通道 uint16_t，100Hz 刷新，随机 0~1023 的值
+3 通道：
+  CH0: 正弦波    0-1023, 周期 ~2s
+  CH1: 锯齿波    0-1023, 周期 ~3s
+  CH2: 三角波    300-700, 周期 ~5s
 
 用法：
-    python tools/tcp_data_simulator.py
-    然后启动 PulseQt，TcpChannel 连接 127.0.0.1:9999
+    python tools/tcp_wave_simulator.py
 """
 import socket
 import struct
 import time
-import random
+import math
 
 HOST = "127.0.0.1"
 PORT = 9999
 
-# ── CRC16-CCITT 查表（与 ProtocolDecoder.cpp 完全一致）─────────────────────
+# ── CRC16-CCITT ──────────────────────────────────────────────────────
 CRC16_TABLE = [
     0x0000,0x1021,0x2042,0x3063,0x4084,0x50A5,0x60C6,0x70E7,
     0x8108,0x9129,0xA14A,0xB16B,0xC18C,0xD1AD,0xE1CE,0xF1EF,
@@ -57,38 +58,45 @@ def crc16_ccitt(data):
         crc = (crc << 8) ^ CRC16_TABLE[((crc >> 8) ^ b) & 0xFF]
     return crc & 0xFFFF
 
-# ── 构造一帧 ─────────────────────────────────────────────────────────
 def make_frame(ch0, ch1, ch2):
-    # Payload: 3 × uint16_t 小端序
     payload = struct.pack('<HHH', ch0, ch1, ch2)
-
-    # 帧头 + 长度 + 类型 + Payload
     raw = b'\xA5\x5A'
-    raw += bytes([len(payload)])   # Length = 6
-    raw += b'\x01'                 # Type = 数据帧
+    raw += bytes([len(payload)])
+    raw += b'\x01'
     raw += payload
-
-    # CRC16-CCITT 校验
     crc = crc16_ccitt(raw)
     raw += struct.pack('<H', crc)
     return raw
 
-# ── 主循环 ────────────────────────────────────────────────────────────
+# ── 主循环 ──────────────────────────────────────────────────────────
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)  # 禁用 Nagle，立即发送
+s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 s.bind((HOST, PORT))
 s.listen(1)
-print(f"Data simulator listening on {HOST}:{PORT} (100Hz, 3ch uint16)")
+print(f"Wave simulator on {HOST}:{PORT} (CH0=sin CH1=saw CH2=tri)")
 
 conn, addr = s.accept()
-print(f"Client connected: {addr}")
+print(f"Connected: {addr}")
 
+t0 = time.time()
 try:
     while True:
-        ch0 = random.randint(0, 1023)
-        ch1 = random.randint(0, 1023)
-        ch2 = random.randint(0, 1023)
+        elapsed = time.time() - t0
+
+        # CH0: 正弦波  0-1023, 周期 2s
+        ch0 = int(512 + 511 * math.sin(elapsed * math.pi))   # sin 在 ±1 之间，周期 π→2s
+
+        # CH1: 锯齿波  0-1023, 周期 3s
+        ch1 = int(1023 * (elapsed % 3.0) / 3.0)
+
+        # CH2: 三角波  300-700, 周期 5s
+        phase = (elapsed % 5.0) / 5.0
+        if phase < 0.5:
+            ch2 = int(300 + 800 * phase)
+        else:
+            ch2 = int(700 - 800 * (phase - 0.5))
+
         frame = make_frame(ch0, ch1, ch2)
         conn.send(frame)
         time.sleep(0.01)   # 100Hz

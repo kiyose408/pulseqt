@@ -2,6 +2,7 @@
 #define DATATABLEMODEL_H
 #include <QAbstractTableModel>
 #include <QDateTime>
+#include <QTimer>
 #include "DataBuffer.h"
 class DataTableModel : public QAbstractTableModel {
     Q_OBJECT
@@ -21,10 +22,13 @@ signals:
 
 private slots:
     void onBufferUpdated(int count);
+    void onThrottleTimer();           // 节流定时器
 
 private:
     DataBuffer *m_buffer = nullptr;
-    QVector<DataPoint> m_snapshot;   // 模型持有的数据副本（不含锁）
+    QVector<DataPoint> m_snapshot;
+    QTimer *m_throttleTimer = nullptr; // 节流：100ms 最多刷新一次
+    bool m_dirty = false;              // 有新数据但未刷新
 };
 
 #endif // DATATABLEMODEL_H
