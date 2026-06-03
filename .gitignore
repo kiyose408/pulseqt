@@ -64,3 +64,4 @@ temp/
 # ── 本地开发记录 ──
 开发日志记录.md
 .reasonix/
+QtSQLite.md
