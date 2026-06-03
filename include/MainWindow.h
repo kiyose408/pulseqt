@@ -2,7 +2,7 @@
 // MainWindow - 主窗口
 //
 // T009: 集成 DataTableModel + QTableView（右侧数据表格）
-// T010: RealTimeChart（左侧自绘曲线），临时 QHBoxLayout 左右分屏
+// T010: RealTimeChart（左侧自绘曲线）
 // T011: QSplitter 布局 + 工具栏 + 状态栏 + 菜单栏
 //==============================================================================
 
@@ -11,6 +11,10 @@
 
 #include <QMainWindow>
 #include <QTableView>
+#include <QLabel>
+#include <QMenu>
+#include <QToolBar>
+#include <QSplitter>
 #include "DataTableModel.h"
 #include "RealTimeChart.h"
 #include "DataBuffer.h"
@@ -26,11 +30,21 @@ public:
     void setDataBuffer(DataBuffer *buffer);
 
 private:
-    // 左侧曲线
+    void setupMenuBar();
+    void setupToolBar();
+    void setupCentralArea();
+    void setupStatusBar();
+
     RealTimeChart  *m_chart       = nullptr;
-    // 右侧表格
     QTableView     *m_tableView   = nullptr;
     DataTableModel *m_tableModel  = nullptr;
+    QLabel         *m_statusLabel = nullptr;
+
+private slots:
+    void onExportCsv();
+    void onAbout();
+    void onConnect();
+    void onDisconnect();
 };
 
 #endif // MAINWINDOW_H

@@ -79,7 +79,7 @@ s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)  # 禁用 Nagle，立即发送
 s.bind((HOST, PORT))
 s.listen(1)
-print(f"Data simulator listening on {HOST}:{PORT} (100Hz, 3ch uint16)")
+print(f"Data simulator listening on {HOST}:{PORT} @ 200Hz (3ch uint16)")
 
 conn, addr = s.accept()
 print(f"Client connected: {addr}")
