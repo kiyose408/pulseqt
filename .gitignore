@@ -65,3 +65,5 @@ temp/
 开发日志记录.md
 .reasonix/
 QtSQLite.md
+SignalDataFlow.md
+docs/
