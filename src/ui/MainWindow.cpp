@@ -3,6 +3,7 @@
 //==============================================================================
 
 #include "MainWindow.h"
+#include "TcpChannel.h"
 #include <QHeaderView>
 #include <QMenuBar>
 #include <QStatusBar>
@@ -58,8 +59,8 @@ void MainWindow::setupToolBar()
     tb->addAction("连接", this, &MainWindow::onConnect);
     tb->addAction("断开", this, &MainWindow::onDisconnect);
     tb->addSeparator();
-    tb->addAction("开始");
-    tb->addAction("停止");
+    tb->addAction("开始", this, &MainWindow::onStart);
+    tb->addAction("停止", this, &MainWindow::onStop);
 }
 
 //==============================================================================
@@ -122,10 +123,71 @@ void MainWindow::onAbout()
 
 void MainWindow::onConnect()
 {
+    if (m_channelMgr) return;
+
+    if (!m_buffer) {
+        m_buffer = new DataBuffer(10000, this);
+        setDataBuffer(m_buffer);
+    }
+
+    m_decoder = new ProtocolDecoder(this);
+    m_channelMgr = new ChannelManager(this);
+    m_dbMgr = new DatabaseManager(this);
+    m_dbMgr->init("data.db");
+
+    TcpChannel *tcp = new TcpChannel("127.0.0.1", 9999, this);
+    m_channelMgr->setChannel(tcp);
+
+    connect(m_channelMgr, &ChannelManager::readyRead, m_decoder, &ProtocolDecoder::feed);
+    connect(m_decoder, &ProtocolDecoder::frameDecoded, this, &MainWindow::onFrameDecoded);
+    connect(m_channelMgr, &ChannelManager::connected, [this]() { m_statusLabel->setText("已连接"); });
+    connect(m_channelMgr, &ChannelManager::disconnected, [this]() {
+        if (m_collecting) m_statusLabel->setText("已断开(重连中)");
+        else m_statusLabel->setText("已断开");
+    });
+
+    m_channelMgr->connectToDevice();
     m_statusLabel->setText("连接中...");
 }
 
 void MainWindow::onDisconnect()
 {
+    m_collecting = false;
+    if (!m_channelMgr) return;
+
+    if (IChannel *ch = m_channelMgr->channel())
+        ch->close();
+
+    delete m_channelMgr; m_channelMgr = nullptr;
+    delete m_decoder;    m_decoder    = nullptr;
+    if (m_dbMgr) { m_dbMgr->flush(); delete m_dbMgr; m_dbMgr = nullptr; }
+    // m_buffer 保留
+
     m_statusLabel->setText("已断开");
+}
+
+void MainWindow::onStart()
+{
+    if (!m_channelMgr) onConnect();  // 没连就先连
+    m_collecting = true;
+    m_statusLabel->setText("采集中...");
+}
+
+void MainWindow::onStop()
+{
+    m_collecting = false;
+    m_statusLabel->setText("已暂停");
+}
+
+void MainWindow::onFrameDecoded(const Frame &frame)
+{
+    if (!m_collecting) return;   // 暂停中，忽略数据
+    if (frame.type != Frame::TYPE_DATA || frame.payload.size() < 6) return;
+
+    DataPoint dp;
+    dp.timestamp = QDateTime::currentMSecsSinceEpoch();
+    auto d = reinterpret_cast<const uint8_t*>(frame.payload.constData());
+    dp.channels = { double(d[0]|(d[1]<<8)), double(d[2]|(d[3]<<8)), double(d[4]|(d[5]<<8)) };
+    m_buffer->push(dp);
+    m_dbMgr->insert(dp);
 }

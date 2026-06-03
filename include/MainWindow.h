@@ -18,6 +18,12 @@
 #include "DataTableModel.h"
 #include "RealTimeChart.h"
 #include "DataBuffer.h"
+#include "ChannelManager.h"
+#include "ProtocolDecoder.h"
+#include "DatabaseManager.h"
+#include "ChannelManager.h"
+#include "ProtocolDecoder.h"
+#include "DatabaseManager.h"
 
 class MainWindow : public QMainWindow
 {
@@ -40,11 +46,21 @@ private:
     DataTableModel *m_tableModel  = nullptr;
     QLabel         *m_statusLabel = nullptr;
 
+    bool m_collecting = false;   // 开始/停止采集标记
+
+    ChannelManager  *m_channelMgr  = nullptr;
+    ProtocolDecoder *m_decoder     = nullptr;
+    DatabaseManager *m_dbMgr       = nullptr;
+    DataBuffer      *m_buffer      = nullptr;
+
 private slots:
     void onExportCsv();
     void onAbout();
     void onConnect();
     void onDisconnect();
+    void onStart();
+    void onStop();
+    void onFrameDecoded(const Frame &frame);
 };
 
 #endif // MAINWINDOW_H

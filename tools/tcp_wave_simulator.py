@@ -1,4 +1,4 @@
-"""TCP 曲线测试模拟器 — 正弦波 + 锯齿波 + 三角波
+"""TCP 曲线测试模拟器 — 持续监听，断开后自动等待重连
 
 3 通道：
   CH0: 正弦波    0-1023, 周期 ~2s
@@ -67,32 +67,33 @@ def make_frame(ch0, ch1, ch2):
     raw += struct.pack('<H', crc)
     return raw
 
+# ── 主循环 — 持续监听，断开后不退出 ──────────────────────────────
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 s.bind((HOST, PORT))
 s.listen(1)
 print(f"Wave simulator on {HOST}:{PORT} @ 100Hz (CH0=sin CH1=saw CH2=tri)")
+print("Waiting for connection... (Ctrl+C to stop)")
 
-conn, addr = s.accept()
-print(f"Connected: {addr}")
+while True:
+    conn, addr = s.accept()
+    print(f"Connected: {addr}")
 
-t0 = time.time()
-try:
-    while True:
-        elapsed = time.time() - t0
-        ch0 = int(512 + 511 * math.sin(elapsed * math.pi))
-        ch1 = int(1023 * (elapsed % 3.0) / 3.0)
-        phase = (elapsed % 5.0) / 5.0
-        if phase < 0.5:
-            ch2 = int(300 + 800 * phase)
-        else:
-            ch2 = int(700 - 800 * (phase - 0.5))
-        frame = make_frame(ch0, ch1, ch2)
-        conn.send(frame)
-        time.sleep(0.01)
-except (ConnectionResetError, BrokenPipeError):
-    print("Client disconnected")
-finally:
-    conn.close()
-    s.close()
+    t0 = time.time()
+    try:
+        while True:
+            elapsed = time.time() - t0
+            ch0 = int(512 + 511 * math.sin(elapsed * math.pi))
+            ch1 = int(1023 * (elapsed % 3.0) / 3.0)
+            phase = (elapsed % 5.0) / 5.0
+            if phase < 0.5:
+                ch2 = int(300 + 800 * phase)
+            else:
+                ch2 = int(700 - 800 * (phase - 0.5))
+            frame = make_frame(ch0, ch1, ch2)
+            conn.send(frame)
+            time.sleep(0.01)
+    except (ConnectionResetError, BrokenPipeError, ConnectionAbortedError):
+        print("Client disconnected — waiting for reconnect...")
+    finally:
+        conn.close()

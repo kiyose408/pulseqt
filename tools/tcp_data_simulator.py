@@ -73,27 +73,28 @@ def make_frame(ch0, ch1, ch2):
     raw += struct.pack('<H', crc)
     return raw
 
-# ── 主循环 ────────────────────────────────────────────────────────────
+# ── 主循环 — 持续监听，断开后不退出 ──────────────────────────────────
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)  # 禁用 Nagle，立即发送
+s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 s.bind((HOST, PORT))
 s.listen(1)
-print(f"Data simulator listening on {HOST}:{PORT} @ 200Hz (3ch uint16)")
+print(f"Data simulator on {HOST}:{PORT} @ 100Hz (3ch uint16)")
+print("Waiting for connection... (Ctrl+C to stop)")
 
-conn, addr = s.accept()
-print(f"Client connected: {addr}")
+while True:
+    conn, addr = s.accept()
+    print(f"Connected: {addr}")
 
-try:
-    while True:
-        ch0 = random.randint(0, 1023)
-        ch1 = random.randint(0, 1023)
-        ch2 = random.randint(0, 1023)
-        frame = make_frame(ch0, ch1, ch2)
-        conn.send(frame)
-        time.sleep(0.01)   # 100Hz
-except (ConnectionResetError, BrokenPipeError):
-    print("Client disconnected")
-finally:
-    conn.close()
-    s.close()
+    try:
+        while True:
+            ch0 = random.randint(0, 1023)
+            ch1 = random.randint(0, 1023)
+            ch2 = random.randint(0, 1023)
+            frame = make_frame(ch0, ch1, ch2)
+            conn.send(frame)
+            time.sleep(0.01)
+    except (ConnectionResetError, BrokenPipeError, ConnectionAbortedError):
+        print("Client disconnected — waiting for reconnect...")
+    finally:
+        conn.close()

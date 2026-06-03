@@ -28,6 +28,8 @@ class ProtocolDecoder : public QObject
     Q_OBJECT
 
 public:
+    explicit ProtocolDecoder(QObject *parent = nullptr) : QObject(parent) {}
+
     // 喂入原始字节数据（可多次调用，状态机跨调用保持进度）
     void feed(const QByteArray &data);
 
