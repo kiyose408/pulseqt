@@ -14,6 +14,7 @@ public:
 public slots:
     void open();
     void close();
+    void write(const QByteArray &data);
 
 signals:
     void rawDataReceived(const QByteArray &data);

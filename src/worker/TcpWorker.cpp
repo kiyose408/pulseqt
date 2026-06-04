@@ -33,6 +33,12 @@ void TcpWorker::open()
 
     m_socket->connectToHost(m_host, m_port);
 }
+void TcpWorker::write(const QByteArray &data)
+{
+    if (m_socket && m_socket->state() == QAbstractSocket::ConnectedState)
+        m_socket->write(data);
+}
+
 void TcpWorker::close()
 {
     if (m_socket) {

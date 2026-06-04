@@ -163,6 +163,11 @@ void MainWindow::onConnect()
             m_parseWorker, &ParseWorker::onRawDataReceived,
             Qt::QueuedConnection);
 
+    // 反向通道：ParseWorker 发心跳帧 → TcpWorker 发送
+    connect(m_parseWorker, &ParseWorker::writeData,
+            m_tcpWorker, &TcpWorker::write,
+            Qt::QueuedConnection);
+
     connect(m_parseWorker, &ParseWorker::dataPointReady,
             this, [this]() { /* UI 稍后刷新 */ },
             Qt::QueuedConnection);
