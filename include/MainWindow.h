@@ -15,15 +15,13 @@
 #include <QMenu>
 #include <QToolBar>
 #include <QSplitter>
+#include <QThread>
 #include "DataTableModel.h"
 #include "RealTimeChart.h"
 #include "DataBuffer.h"
-#include "ChannelManager.h"
-#include "ProtocolDecoder.h"
-#include "DatabaseManager.h"
-#include "ChannelManager.h"
-#include "ProtocolDecoder.h"
-#include "DatabaseManager.h"
+#include "TcpWorker.h"        // 替代 ChannelManager.h
+#include "ParseWorker.h"      // 替代 ProtocolDecoder.h + DatabaseManager.h
+
 
 class MainWindow : public QMainWindow
 {
@@ -32,6 +30,9 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override = default;
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 
     void setDataBuffer(DataBuffer *buffer);
 
@@ -48,10 +49,11 @@ private:
 
     bool m_collecting = false;   // 开始/停止采集标记
 
-    ChannelManager  *m_channelMgr  = nullptr;
-    ProtocolDecoder *m_decoder     = nullptr;
-    DatabaseManager *m_dbMgr       = nullptr;
-    DataBuffer      *m_buffer      = nullptr;
+    QThread     *m_commThread  = nullptr;   // 通信线程
+    QThread     *m_parseThread = nullptr;   // 解析线程
+    TcpWorker   *m_tcpWorker   = nullptr;   // TCP 收发
+    ParseWorker *m_parseWorker = nullptr;   // 解码 + 缓冲 + DB
+
 
 private slots:
     void onExportCsv();
@@ -60,7 +62,6 @@ private slots:
     void onDisconnect();
     void onStart();
     void onStop();
-    void onFrameDecoded(const Frame &frame);
 };
 
 #endif // MAINWINDOW_H

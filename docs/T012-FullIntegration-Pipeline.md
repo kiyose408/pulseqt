@@ -199,23 +199,23 @@ void MainWindow::onFrameDecoded(const Frame &frame)
 
 ## 四、关键设计决策
 
-| 决策 | 选择 | 理由 |
-|------|------|------|
-| buffer 断连不删 | 复用 | 重连后历史数据不丢失 |
-| DB 断连时 flush | 是 | 最后几十条缓冲数据不浪费 |
-| 开始/停止只控制采集 | 不控 TCP | 停止后恢复即时生效，不需要重建连接 |
-| parent 统一为 this | ✅ | Qt 父子树自动管理，析构不用逐个 delete |
-| 防重入 | `if(m_channelMgr) return` | 连点"连接"不会创建双管道 |
+| 决策              | 选择                        | 理由                       |
+| --------------- | ------------------------- | ------------------------ |
+| buffer 断连不删     | 复用                        | 重连后历史数据不丢失               |
+| DB 断连时 flush    | 是                         | 最后几十条缓冲数据不浪费             |
+| 开始/停止只控制采集      | 不控 TCP                    | 停止后恢复即时生效，不需要重建连接        |
+| parent 统一为 this | ✅                         | Qt 父子树自动管理，析构不用逐个 delete |
+| 防重入             | `if(m_channelMgr) return` | 连点"连接"不会创建双管道            |
 
 ---
 
 ## 五、本次遇到的坑
 
-| # | 现象 | 根因 | 修复 |
-|:--:|------|------|------|
-| 1 | `onConnect` 连点两次 crash | 无双管道防护 | `if(m_channelMgr) return` |
-| 2 | 断开后 UI 清空 | `setDataBuffer(nullptr)` 掐断了曲线数据源 | 去掉，buffer 保留 |
-| 3 | 重连后历史数据消失 | 每次 new 新 buffer 覆盖旧 buffer | buffer 复用，只创建一次 |
-| 4 | 断开后无法重连 | `delete m_channelMgr` 没关底层 TcpChannel | 先 `ch->close()` 再 delete |
-| 5 | 断开/停止后状态混淆 | 没有采集状态标记 | `m_collecting` 标志 |
-| 6 | 模拟器断连即退出 | 没捕获 `ConnectionAbortedError` | 脚本加异常捕获 + 循环 accept |
+| #   | 现象                     | 根因                                    | 修复                        |
+|:---:| ---------------------- | ------------------------------------- | ------------------------- |
+| 1   | `onConnect` 连点两次 crash | 无双管道防护                                | `if(m_channelMgr) return` |
+| 2   | 断开后 UI 清空              | `setDataBuffer(nullptr)` 掐断了曲线数据源     | 去掉，buffer 保留              |
+| 3   | 重连后历史数据消失              | 每次 new 新 buffer 覆盖旧 buffer            | buffer 复用，只创建一次           |
+| 4   | 断开后无法重连                | `delete m_channelMgr` 没关底层 TcpChannel | 先 `ch->close()` 再 delete  |
+| 5   | 断开/停止后状态混淆             | 没有采集状态标记                              | `m_collecting` 标志         |
+| 6   | 模拟器断连即退出               | 没捕获 `ConnectionAbortedError`          | 脚本加异常捕获 + 循环 accept       |
