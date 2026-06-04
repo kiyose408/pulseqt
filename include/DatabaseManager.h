@@ -51,7 +51,8 @@ public:
 
     // 数据库中的总行数（调试用）
     int rowCount() const;
-
+    uint64_t minTimestamp() const;
+    uint64_t maxTimestamp() const;
 private:
     // 事务批量提交缓冲区
     void commitBatch();

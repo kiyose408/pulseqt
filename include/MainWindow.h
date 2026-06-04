@@ -16,11 +16,13 @@
 #include <QToolBar>
 #include <QSplitter>
 #include <QThread>
+#include <QVBoxLayout>
 #include "DataTableModel.h"
 #include "RealTimeChart.h"
 #include "DataBuffer.h"
 #include "TcpWorker.h"        // 替代 ChannelManager.h
 #include "ParseWorker.h"      // 替代 ProtocolDecoder.h + DatabaseManager.h
+#include "HistoryPlayer.h"
 
 
 class MainWindow : public QMainWindow
@@ -53,7 +55,7 @@ private:
     QThread     *m_parseThread = nullptr;   // 解析线程
     TcpWorker   *m_tcpWorker   = nullptr;   // TCP 收发
     ParseWorker *m_parseWorker = nullptr;   // 解码 + 缓冲 + DB
-
+    HistoryPlayer *m_historyPlayer = nullptr;
 
 private slots:
     void onExportCsv();

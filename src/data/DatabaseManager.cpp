@@ -267,3 +267,20 @@ int DatabaseManager::rowCount() const
         return query.value(0).toInt();
     return 0;
 }
+uint64_t DatabaseManager::minTimestamp() const
+{
+    QSqlQuery query(m_db);
+    query.exec("SELECT MIN(timestamp) FROM data_points");
+    if (query.next() && !query.value(0).isNull())
+        return query.value(0).toULongLong();
+    return 0;
+}
+
+uint64_t DatabaseManager::maxTimestamp() const
+{
+    QSqlQuery query(m_db);
+    query.exec("SELECT MAX(timestamp) FROM data_points");
+    if (query.next() && !query.value(0).isNull())
+        return query.value(0).toULongLong();
+    return 0;
+}

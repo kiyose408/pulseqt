@@ -76,10 +76,7 @@ void MainWindow::setupToolBar()
 
 void MainWindow::setupCentralArea()
 {
-    // ── 左侧：自绘曲线 ──
     m_chart = new RealTimeChart(this);
-
-    // ── 右侧：数据表格 ──
     m_tableModel = new DataTableModel(this);
     m_tableView  = new QTableView(this);
     m_tableView->setModel(m_tableModel);
@@ -91,14 +88,24 @@ void MainWindow::setupCentralArea()
         m_tableView->scrollToBottom();
     });
 
-    // ── QSplitter 7:3 ──
+    // 上：曲线 + 表格
     QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->addWidget(m_chart);
     splitter->addWidget(m_tableView);
     splitter->setStretchFactor(0, 7);
     splitter->setStretchFactor(1, 3);
 
-    setCentralWidget(splitter);
+    // 下：历史回放
+    m_historyPlayer = new HistoryPlayer(this);
+
+    // 整体垂直布局
+    QWidget *central = new QWidget(this);
+    QVBoxLayout *vLayout = new QVBoxLayout(central);
+    vLayout->setContentsMargins(0, 0, 0, 0);
+    vLayout->addWidget(splitter, 1);         // 占满剩余空间
+    vLayout->addWidget(m_historyPlayer);     // 底部固定高度
+
+    setCentralWidget(central);
 }
 
 //==============================================================================
@@ -165,7 +172,9 @@ void MainWindow::onConnect()
 
     // ⑤ 注入数据源到 UI
     setDataBuffer(m_parseWorker->buffer());
-
+    m_historyPlayer->setDbPath("data.db");
+    m_historyPlayer->setDataBuffer(m_parseWorker->buffer());
+    m_historyPlayer->loadTimeRange();
     // ⑥ 启动线程
     m_commThread->start();
     m_parseThread->start();
