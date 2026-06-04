@@ -68,3 +68,10 @@ temp/
 docs/QtSQLite-*.md
 docs/SignalDataFlow-*.md
 docs/QtCustomPaint-*.md
+docs/QtMultithreading-*.md
+docs/Heartbeat-*.md
+docs/T012-*.md
+docs/T016-*.md
+
+# 发布产物
+dist/
