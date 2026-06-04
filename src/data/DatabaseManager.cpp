@@ -167,7 +167,7 @@ void DatabaseManager::commitBatch()
     query.prepare("INSERT INTO data_points (timestamp, channels) VALUES (?, ?)");
 
     for (const DataPoint &dp : m_pending) {
-        query.addBindValue(dp.timestamp);
+        query.addBindValue(static_cast<qulonglong>(dp.timestamp));
         query.addBindValue(serializeChannels(dp.channels));
 
         if (!query.exec()) {
@@ -206,8 +206,8 @@ QVector<DataPoint> DatabaseManager::query(uint64_t tBegin, uint64_t tEnd,
         "ORDER BY timestamp ASC "
         "LIMIT ?");
 
-    query.addBindValue(tBegin);
-    query.addBindValue(tEnd);
+    query.addBindValue(static_cast<qulonglong>(tBegin));
+    query.addBindValue(static_cast<qulonglong>(tEnd));
     query.addBindValue(limit);
 
     if (!query.exec()) {
@@ -240,7 +240,7 @@ int DatabaseManager::cleanup(int retentionDays)
                       - static_cast<uint64_t>(retentionDays) * 86400000ULL;
 
     query.prepare("DELETE FROM data_points WHERE timestamp < ?");
-    query.addBindValue(cutoff);
+    query.addBindValue(static_cast<qulonglong>(cutoff));
 
     if (!query.exec()) {
         qWarning() << "DatabaseManager: cleanup failed -"
