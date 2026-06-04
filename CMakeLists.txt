@@ -52,6 +52,8 @@ qt_add_executable(PulseQt
     src/worker/ParseWorker.cpp
     include/HistoryPlayer.h
     src/ui/HistoryPlayer.cpp
+    include/ExportDialog.h
+    src/ui/ExportDialog.cpp
 )
 
 # 7. 为 PulseQt 程序添加私有的头文件搜索路径（PRIVATE 表示这些头文件仅本项目内部使用）

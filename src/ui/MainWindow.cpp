@@ -9,7 +9,7 @@
 #include <QMenuBar>
 #include <QStatusBar>
 #include <QMessageBox>
-
+#include "ExportDialog.h"
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
@@ -124,7 +124,14 @@ void MainWindow::setupStatusBar()
 
 void MainWindow::onExportCsv()
 {
-    qInfo() << "Export CSV clicked";
+    DatabaseManager db;                    // 临时独立连接
+    if (!db.init("data.db")) {
+        QMessageBox::warning(this, "错误", "无法打开数据库");
+        return;
+    }
+
+    ExportDialog dialog(&db, this);       // 传独立连接
+    dialog.exec();                         // 模态弹窗
 }
 
 void MainWindow::onAbout()
