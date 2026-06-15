@@ -271,3 +271,84 @@ MIT License — 详见 [dist/license.txt](dist/license.txt)
 
 - 仓库：https://gitee.com/kiyose408/pulse_qt
 - 版本：v1.0（2026-06-05）
+
+---
+
+## 12. v2.0 路线图（17 个 T 任务 · 5 个里程碑）
+
+> 从"可用的个人项目"升级为**工程级工业产品** —— 补测试、加 CI、扩协议、建管道、深可视化、做工程化。
+> 
+> 完整规划见 [doc/04_开发计划与日报.md](doc/04_开发计划与日报.md#v20-拓展阶段t022t038)
+
+### 阶段 7：测试与 CI
+
+| 编号 | 任务 | 说明 |
+|:--:|------|------|
+| T022 | ProtocolDecoder 单元测试 | QtTest 覆盖 7 状态 + 粘包/半帧/CRC错误/乱码 |
+| T023 | DataBuffer 单元测试 | 环形缓冲绕回 + TSan 多线程压测 |
+| T024 | DatabaseManager + Frame 单元测试 | 批量写入/序列化往返/查询边界 + CRC 标准向量 |
+| T025 | 全链路集成测试 | Python 模拟器驱动 → 采集 → DB → CSV → 回放 → 断线重连 |
+| T026 | CI/CD Pipeline | GitHub Actions 三平台 matrix (Ubuntu/Win/macOS) |
+
+**里程碑 ⑤**：`ctest` 全部 pass，状态机覆盖率 100%  
+**里程碑 ⑥**：三平台 CI 全绿
+
+### 阶段 8：协议层深度
+
+| 编号 | 任务 | 说明 |
+|:--:|------|------|
+| T027 | Modbus RTU 协议适配器 | 功能码 03/04/06 + CRC16-Modbus，通过 signal/slot 对等替换 |
+| T028 | 协议帧 Fuzzing 工具 | 位翻转/字节注入/CRC腐败/长度欺骗 10万帧压测 |
+
+### 阶段 9：数据处理管道
+
+| 编号 | 任务 | 说明 |
+|:--:|------|------|
+| T029 | IFilter 抽象接口 + FilterPipeline | 策略模式 + 责任链，运行时动态装配 |
+| T030 | MovingAverage + MedianFilter | 滑动窗口/指数加权 + 中值野值剔除 |
+| T031 | ThresholdAlarm 告警引擎 | 多通道独立阈值 + 滞回(Hysteresis)防抖动 |
+| T032 | 告警面板 + SQLite 告警记录 | 指示灯闪烁 + QTableView 列表 + 右键确认 |
+
+**里程碑 ⑦**：模拟器注入超阈值 → 指示灯闪烁 → 告警记录持久化 → 可确认清除
+
+### 阶段 10：可视化深化
+
+| 编号 | 任务 | 说明 |
+|:--:|------|------|
+| T033 | 多 Y 轴 + 通道显隐 | 右侧堆叠 Y 轴 + Ctrl 滚轮独立缩放 + 图例点击切换 |
+| T034 | SpectrumWidget 实时频谱 | KissFFT + Hanning 窗 + dB 坐标，10 FPS |
+| T035 | QDockWidget 可拖拽布局 | 曲线/表格/频谱/告警四面板自由重排 |
+
+**里程碑 ⑧**：四面板可拖拽，布局持久化
+
+### 阶段 11：工程化收尾
+
+| 编号 | 任务 | 说明 |
+|:--:|------|------|
+| T036 | QSettings 配置持久化 | 窗口/连接/图表/过滤器/告警/语言 6 类配置记忆 |
+| T037 | Doxygen API 文档 | `cmake --build build --target doxygen` 一键生成 |
+| T038 | 多语言支持（中/英） | Qt Linguist + QTranslator 运行时切换 |
+
+**里程碑 ⑨**：Doxygen 文档站 + 中英文切换 + 完整工程化交付闭环
+
+### 新增依赖关系
+
+```
+v1.0 基线
+  ├── T022→T023→T024→T025→T026    (测试+CI，线性推进)
+  ├── T027→T028                     (Modbus+Fuzzer，独立)
+  ├── T029→T030→T031→T032          (管道+告警，线性推进)
+  ├── T033→T034→T035               (可视化，线性推进)
+  └── T036→T037→T038               (工程化，并行收尾)
+```
+
+### 技术关键词（v2.0 新增）
+
+| 类别 | 新技术点 |
+|------|------|
+| 测试 | QtTest、gcov 覆盖率、TSan 线程安全、GitHub Actions CI |
+| 协议 | Modbus RTU (CRC16-Modbus)、协议 Fuzzing |
+| 数据处理 | 策略模式、责任链、滑动平均、中值滤波、阈值滞回 |
+| 数学 | Cooley-Tukey FFT、Hanning 窗、dB 转换 |
+| UI | QDockWidget、多 Y 轴、QSettings、QTranslator |
+| 工程化 | Doxygen、Qt Linguist、lupdate/lrelease |
