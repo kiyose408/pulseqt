@@ -78,8 +78,11 @@ enable_testing()
 # 头文件也需列入源列表，让 AUTOMOC 生成信号实现
 add_library(PulseQtTestLib STATIC
     src/protocol/ProtocolDecoder.cpp
+    src/data/DataBuffer.cpp
     include/ProtocolDecoder.h
     include/Frame.h
+    include/DataBuffer.h
+    include/DataPoint.h
 )
 target_include_directories(PulseQtTestLib PRIVATE include)
 target_link_libraries(PulseQtTestLib PUBLIC Qt6::Core)
@@ -101,6 +104,15 @@ target_include_directories(TestProtocolDecoder PRIVATE ${CMAKE_BINARY_DIR}/TestP
 target_link_libraries(TestProtocolDecoder PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME ProtocolDecoder COMMAND TestProtocolDecoder)
 
+# T023 — DataBuffer 单元测试
+qt_add_executable(TestDataBuffer
+    tests/TestDataBuffer.cpp
+)
+target_include_directories(TestDataBuffer PRIVATE include)
+target_include_directories(TestDataBuffer PRIVATE ${CMAKE_BINARY_DIR}/TestDataBuffer_autogen/include_Debug)
+target_link_libraries(TestDataBuffer PRIVATE PulseQtTestLib Qt6::Test)
+add_test(NAME DataBuffer COMMAND TestDataBuffer)
+
 # 测试运行时需 Qt DLL（将 Qt bin 加入 PATH）
-set_tests_properties(Frame ProtocolDecoder PROPERTIES
+set_tests_properties(Frame ProtocolDecoder DataBuffer PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
