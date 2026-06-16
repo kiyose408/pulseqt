@@ -1,5 +1,5 @@
 # 1. 设置构建本项目所需的最低 CMake 版本
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.22)
 
 # 2. 定义项目名称为 PulseQt，版本号为 1.0.0，主要使用的编程语言是 C++
 project(PulseQt VERSION 1.0.0 LANGUAGES CXX)
@@ -9,13 +9,20 @@ set(CMAKE_CXX_STANDARD 17)
 # 4. 强制要求编译器必须支持 C++17 标准，如果不支持则报错
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 4.6 MSVC 需显式开启 __cplusplus 宏（否则 Qt6 编译报错）
+if(MSVC)
+    add_compile_options(/Zc:__cplusplus)
+endif()
+
 # 4.5 显式开启 Qt 元对象编译器（AUTOMOC）
 #     扫描所有源文件中的 Q_OBJECT 宏，自动生成 moc_*.cpp
 set(CMAKE_AUTOMOC ON)
 
 # 5. 查找并加载 Qt6 库。REQUIRED 表示如果找不到则报错终止；
 #    COMPONENTS 后面列出了项目具体依赖的 5 个 Qt 模块
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets SerialPort Network Sql)
+#    强制指定 MSVC 版本路径（避免误用 mingw_64 的 Qt）
+set(CMAKE_PREFIX_PATH "D:/Qt/6.9.0/msvc2022_64" ${CMAKE_PREFIX_PATH})
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets SerialPort Network Sql Test)
 
 # 6. 定义一个名为 PulseQt 的可执行程序，包含 main.cpp 和 MainWindow.cpp 两个源文件
 #    (注：qt_add_executable 是 Qt6 推荐的命令，能更好地处理跨平台特性)
@@ -61,3 +68,39 @@ target_include_directories(PulseQt PRIVATE include)
 
 # 8. 将前面找到的 5 个 Qt6 模块库链接到 PulseQt 可执行程序上
 target_link_libraries(PulseQt PRIVATE Qt6::Core Qt6::Widgets Qt6::SerialPort Qt6::Network Qt6::Sql)
+
+# ═══════════════════════════════════════════════════════════
+# 测试
+# ═══════════════════════════════════════════════════════════
+enable_testing()
+
+# 测试公共静态库（复用被测模块 .cpp，避免重复编译）
+# 头文件也需列入源列表，让 AUTOMOC 生成信号实现
+add_library(PulseQtTestLib STATIC
+    src/protocol/ProtocolDecoder.cpp
+    include/ProtocolDecoder.h
+    include/Frame.h
+)
+target_include_directories(PulseQtTestLib PRIVATE include)
+target_link_libraries(PulseQtTestLib PUBLIC Qt6::Core)
+
+# T022 — ProtocolDecoder + Frame 单元测试
+qt_add_executable(TestFrame
+    tests/TestFrame.cpp
+)
+target_include_directories(TestFrame PRIVATE include)
+target_include_directories(TestFrame PRIVATE ${CMAKE_BINARY_DIR}/TestFrame_autogen/include_Debug)
+target_link_libraries(TestFrame PRIVATE PulseQtTestLib Qt6::Test)
+add_test(NAME Frame COMMAND TestFrame)
+
+qt_add_executable(TestProtocolDecoder
+    tests/TestProtocolDecoder.cpp
+)
+target_include_directories(TestProtocolDecoder PRIVATE include)
+target_include_directories(TestProtocolDecoder PRIVATE ${CMAKE_BINARY_DIR}/TestProtocolDecoder_autogen/include_Debug)
+target_link_libraries(TestProtocolDecoder PRIVATE PulseQtTestLib Qt6::Test)
+add_test(NAME ProtocolDecoder COMMAND TestProtocolDecoder)
+
+# 测试运行时需 Qt DLL（将 Qt bin 加入 PATH）
+set_tests_properties(Frame ProtocolDecoder PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
