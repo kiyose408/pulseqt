@@ -83,9 +83,11 @@ add_library(PulseQtTestLib STATIC
     include/Frame.h
     include/DataBuffer.h
     include/DataPoint.h
+    src/data/DatabaseManager.cpp      # ← T024 追加
+    include/DatabaseManager.h         # ← T024 追加
 )
 target_include_directories(PulseQtTestLib PRIVATE include)
-target_link_libraries(PulseQtTestLib PUBLIC Qt6::Core)
+target_link_libraries(PulseQtTestLib PUBLIC Qt6::Core Qt6::Sql)
 
 # T022 — ProtocolDecoder + Frame 单元测试
 qt_add_executable(TestFrame
@@ -113,6 +115,15 @@ target_include_directories(TestDataBuffer PRIVATE ${CMAKE_BINARY_DIR}/TestDataBu
 target_link_libraries(TestDataBuffer PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME DataBuffer COMMAND TestDataBuffer)
 
+# T024 — DatabaseManager 单元测试
+qt_add_executable(TestDatabaseManager
+    tests/TestDatabaseManager.cpp
+)
+target_include_directories(TestDatabaseManager PRIVATE include)
+target_include_directories(TestDatabaseManager PRIVATE ${CMAKE_BINARY_DIR}/TestDatabaseManager_autogen/include_Debug)
+target_link_libraries(TestDatabaseManager PRIVATE PulseQtTestLib Qt6::Test Qt6::Sql)
+add_test(NAME DatabaseManager COMMAND TestDatabaseManager)
+
 # 测试运行时需 Qt DLL（将 Qt bin 加入 PATH）
-set_tests_properties(Frame ProtocolDecoder DataBuffer PROPERTIES
+set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
