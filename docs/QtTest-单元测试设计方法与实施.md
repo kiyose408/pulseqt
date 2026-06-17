@@ -1,6 +1,6 @@
 # QtTest 单元测试 — 设计方法与实施全解
 
-> 基于 T022 ProtocolDecoder 测试实战，覆盖测试架构设计、用例编排逻辑、CMake 集成、踩坑与最佳实践。
+> 基于 T022 ProtocolDecoder + T023 DataBuffer 测试实战，覆盖测试架构设计、两类模块用例推导（状态机/非状态机）、CMake 增量扩展、踩坑与最佳实践。
 
 ---
 
@@ -8,26 +8,37 @@
 
 ### 1.1 核心原则：被测单元零 Mock、零副作用
 
-PulseQt 的 ProtocolDecoder 是理想的单元测试对象：
+两个模块都是理想的单元测试对象——纯内存操作、无外部依赖：
 
-| 特征 | ProtocolDecoder | 是否适合单测 |
-|------|:--|:--:|
-| 输入 | `feed(QByteArray)` — 纯字节流 | ✅ |
-| 输出 | `signal frameDecoded(Frame)` / `signal crcError(QByteArray)` | ✅ |
-| 依赖 | 无外部服务、无文件 IO、无网络 | ✅ |
-| 状态 | 纯内存状态机，`reset()` 可恢复 | ✅ |
+| 特征 | ProtocolDecoder | DataBuffer |
+|------|:--|:--|
+| 输入 | `feed(QByteArray)` 字节流 | `push(DataPoint)` 数据点 |
+| 输出 | signal `frameDecoded` / `crcError` | signal `bufferUpdated` + `snapshot()` |
+| 依赖 | 无外部服务/文件 IO/网络 | QMutex（标准库，无外部依赖） |
+| 状态 | 7 状态状态机 | 环形缓冲 + 头指针 |
+| 可重置 | `reset()` | `clear()` |
+| 适合单测 | ✅ | ✅ |
+
+| 特征 | ❌ 不适合单测的典型 |
+|------|------|
+| 依赖 | 需要 SQLite 文件、网络连接、硬件串口 |
+| 副作用 | 写入磁盘、发送网络包、修改系统状态 |
+| 处理 | T024 用临时文件隔离，T025 用 Python 模拟器打桩 |
 
 **选择原则**：优先测"输入→输出"清晰的模块（协议解码、数据缓冲、序列化），后测有副作用的模块（数据库写入、网络通信）。
 
 ### 1.2 CMake 测试基础设施
 
 ```
-PulseQtTestLib (STATIC)          ← 公共：复用被测 .cpp
-  ├── ProtocolDecoder.cpp        ← 被测模块
-  └── ProtocolDecoder.h, Frame.h ← AUTOMOC 扫描生成 moc_*.cpp
+PulseQtTestLib (STATIC)               ← 公共：复用被测 .cpp
+  ├── ProtocolDecoder.cpp             ← T022 被测模块
+  ├── DataBuffer.cpp                  ← T023 被测模块
+  ├── ProtocolDecoder.h, Frame.h      ← AUTOMOC 扫描生成 moc
+  └── DataBuffer.h, DataPoint.h       ← AUTOMOC 扫描生成 moc
        │
-       ├── TestFrame.exe          ← CRC 标准向量
-       └── TestProtocolDecoder.exe ← 状态机 8 用例
+       ├── TestFrame.exe              ← CRC 标准向量
+       ├── TestProtocolDecoder.exe    ← 状态机 8 用例
+       └── TestDataBuffer.exe         ← 环形缓冲 8 用例含多线程
 ```
 
 **为什么用静态库？** 被测模块的 .cpp 只编译一次，所有测试可执行文件链接同一个 PulseQtTestLib，避免重复编译和符号冲突。
@@ -35,18 +46,25 @@ PulseQtTestLib (STATIC)          ← 公共：复用被测 .cpp
 **关键 CMake 片段：**
 
 ```cmake
-# 测试公共静态库
+# 测试公共静态库（每个新任务追加被测 .cpp / .h）
 add_library(PulseQtTestLib STATIC
     src/protocol/ProtocolDecoder.cpp
-    include/ProtocolDecoder.h    # ← AUTOMOC 需要头文件生成 moc
+    src/data/DataBuffer.cpp              # ← T023 追加
+    include/ProtocolDecoder.h
     include/Frame.h
+    include/DataBuffer.h                 # ← T023 追加
+    include/DataPoint.h                  # ← T023 追加
 )
 target_link_libraries(PulseQtTestLib PUBLIC Qt6::Core)
 
-# 测试可执行文件
+# 测试可执行文件（每个新任务追加一个 target）
 qt_add_executable(TestProtocolDecoder tests/TestProtocolDecoder.cpp)
 target_link_libraries(TestProtocolDecoder PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME ProtocolDecoder COMMAND TestProtocolDecoder)
+
+qt_add_executable(TestDataBuffer tests/TestDataBuffer.cpp)
+target_link_libraries(TestDataBuffer PRIVATE PulseQtTestLib Qt6::Test)
+add_test(NAME DataBuffer COMMAND TestDataBuffer)
 ```
 
 ### 1.3 MSVC 特有配置
@@ -65,7 +83,7 @@ set(CMAKE_PREFIX_PATH "D:/Qt/6.9.0/msvc2022_64" ${CMAKE_PREFIX_PATH})
 
 ```cmake
 # ctest 启动时 Qt DLL 不在 PATH 中 → ENVIRONMENT_MODIFICATION (CMake ≥ 3.22)
-set_tests_properties(Frame ProtocolDecoder PROPERTIES
+set_tests_properties(Frame ProtocolDecoder DataBuffer PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
 ```
 
@@ -301,24 +319,116 @@ gcovr -r . --html-details -o coverage.html
 
 ---
 
-## 七、后续 T023–T025 注意事项
+## 七、多线程模块测试（T023 实战）
+
+### 7.1 多线程测试的设计难点
+
+DataBuffer 与 ProtocolDecoder 的本质区别：
+
+| 维度 | ProtocolDecoder | DataBuffer |
+|------|:--|:--|
+| 线程模型 | 单线程（feed 在同一个线程调用） | 多线程（push 可并发，QMutex 保护） |
+| 用例推导 | 从状态机 7 状态 + 3 类刺激 | 从环形缓冲 4 阶段：空/未满/满/绕回 |
+| 信号验证 | QSignalSpy 精确计数 | 仅 bufferUpdated 简单信号 |
+| 并发验证 | 不需要 | **多线程压测是核心** |
+| 数据正确性 | 逐字节对比 | 时间戳顺序对比 |
+
+### 7.2 环形缓冲用例推导：四阶段法
+
+```
+缓冲区生命周期 × 操作类型 = 8 用例
+
+阶段 ① 空缓冲      → snapshotEmpty     (边界)
+阶段 ② 未满        → pushUnderCapacity  (普通) → snapshotNotFull (验证顺序)
+阶段 ③ 满（临界）   → pushOverCapacity   (边界) → snapshotWrapped (验证绕回)
+阶段 ④ 清空后重用   → clearBuffer       (生命周期)
+
+通用                 → signalBufferUpdated  (信号)
+                     → multithreadedStress  (并发安全)
+```
+
+**与状态机推导的区别**：状态机按"状态 × 刺激"二维展开；环形缓冲按"生命周期阶段 × 操作"展开。共通点——都是从被测模块的内在结构出发，不是从代码行数出发。
+
+### 7.3 多线程压测模式
+
+```cpp
+void multithreadedStress()
+{
+    const int CAPACITY   = 100;
+    const int PER_THREAD = 5000;
+    DataBuffer buffer(CAPACITY);
+
+    // ── Writer 1 ──
+    QThread t1;
+    QObject::connect(&t1, &QThread::started, [&]() {
+        for (int i = 0; i < PER_THREAD; ++i)
+            buffer.push(makePoint(i));
+        t1.quit();
+    });
+
+    // ── Writer 2 ──
+    QThread t2;
+    QObject::connect(&t2, &QThread::started, [&]() {
+        for (int i = 0; i < PER_THREAD; ++i)
+            buffer.push(makePoint(1'000'000 + i));
+        t2.quit();
+    });
+
+    t1.start();
+    t2.start();
+
+    // ── Reader（主线程）：持续并发 snapshot ──
+    while (t1.isRunning() || t2.isRunning()) {
+        QVector<DataPoint> snap = buffer.snapshot();
+        QVERIFY(snap.size() <= CAPACITY);  // 核心断言：永不超过容量
+    }
+
+    t1.wait();
+    t2.wait();
+    QCOMPARE(buffer.size(), CAPACITY);
+}
+```
+
+**关键设计**：
+- 写线程用 `QThread::started` + lambda，写完主动 `quit()`
+- 读线程（主线程）在 while 循环中持续 snapshot——**snapshot 返回副本**是安全的关键，QMutex 仅在做副本的瞬间持有
+- 断言聚焦"不变量"：size 永远 ≤ capacity
+- 不用 TSan 也能在 CI 中捕获大部分 data race——如果 QMutex 有遗漏，几十万次并发 push 大概率触发 size 错乱或 crash
+
+### 7.4 DataBuffer 特有的辅助函数模式
+
+```cpp
+// 工厂函数：避免每个用例手写 DataPoint 构造
+static DataPoint makePoint(uint64_t ts, double ch0 = 0.0, double ch1 = 0.0)
+{
+    DataPoint dp;
+    dp.timestamp = ts;
+    dp.channels = {ch0, ch1};
+    return dp;
+}
+
+// 使用：一行创建
+buffer.push(makePoint(42, 3.14, 2.71));
+```
+
+**原则**：辅助函数永远值得写——ProtocolDecoder 的 `buildFrame()` 节省了帧拼接，DataBuffer 的 `makePoint()` 节省了 DataPoint 逐字段赋值。
+
+### 7.5 新增踩坑：静态库增量扩展
+
+| 现象 | 原因 | 解决 |
+|------|------|------|
+| 新测试编译通过但链接报 `LNK2019` | 被测 .cpp 未加入 PulseQtTestLib | 在 CMake 的 `add_library(PulseQtTestLib ...)` 中追加 .cpp + .h |
+| AUTOMOC 不生成新模块的 moc | 头文件未在源列表中出现 | `.h` 也必须加入 PulseQtTestLib 源列表 |
+| `set_tests_properties` 对新测试不生效 | DLL 路径配置没更新 | 每次新增测试名要追加到 `set_tests_properties` |
+
+---
+
+## 八、后续 T024–T025 注意事项
 
 | T 任务 | 被测模块 | 新增挑战 |
 |--------|------|------|
-| T023 DataBuffer | 环形缓冲 + QMutex | 多线程压测需 TSan |
 | T024 DatabaseManager | SQLite 读写 | 需要临时数据库文件、测试后清理 |
 | T025 集成测试 | 全链路 | 需启动 Python 模拟器、等待端口就绪、超时控制 |
-
-**T023 多线程模式**：
-
-```cpp
-// 不是 QSignalSpy，而是手动 join + 断言
-QThread t1, t2;
-// 两个写线程 + 一个读线程并发 push / getRange
-t1.start(); t2.start();
-t1.wait(); t2.wait();
-QCOMPARE(buffer->size(), expected);
-```
 
 **T024 数据库隔离**：
 
@@ -337,10 +447,12 @@ void cleanupTestCase()
 
 ---
 
-## 八、核心心法
+## 九、核心心法
 
 1. **先跑通框架，再加用例** — 一个 `QCOMPARE(1, 1)` 验证编译/链接/DLL 全链路
-2. **用例从状态空间推导，不从代码行数推导** — 目标是状态覆盖率，不是行覆盖率
-3. **辅助函数是 ROI 最高的投资** — `buildFrame()` 节省 8 个用例的帧拼接代码
-4. **每个用例只测一件事** — `crcError` 只测 CRC 失败，不顺便测粘包
+2. **用例从模块内在结构推导** — 状态机按"状态 × 刺激"展开，环形缓冲按"生命周期阶段 × 操作"展开，共通点是都从被测模块的内部结构出发
+3. **辅助函数是 ROI 最高的投资** — `buildFrame()` 节省 8 个用例的帧拼接；`makePoint()` 节省 DataPoint 逐字段赋值
+4. **每个用例只测一件事** — `crcError` 只测 CRC 失败，不顺便测粘包；`pushOverCapacity` 只测绕回，不顺便测 snapshot 顺序
 5. **失败信息要能定位** — `QCOMPARE` 优于 `QVERIFY`，变量名自文档化
+6. **多线程测试聚焦不变量** — 不追求逐条数据的精确时序，只断言 `size ≤ capacity` 这类必然成立的条件
+7. **CMake 增量扩展是重复劳动的高发区** — 新模块必须同步追加 3 处：PulseQtTestLib 源列表、测试 target、DLL 路径属性
