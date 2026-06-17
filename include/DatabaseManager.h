@@ -26,6 +26,8 @@ class DatabaseManager : public QObject
 {
     Q_OBJECT
 
+    friend class TestDatabaseManager;  // 单元测试可访问 private 成员
+
 public:
     explicit DatabaseManager(QObject *parent = nullptr);
     ~DatabaseManager() override;
