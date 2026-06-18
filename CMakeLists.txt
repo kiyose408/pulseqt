@@ -20,8 +20,11 @@ set(CMAKE_AUTOMOC ON)
 
 # 5. 查找并加载 Qt6 库。REQUIRED 表示如果找不到则报错终止；
 #    COMPONENTS 后面列出了项目具体依赖的 5 个 Qt 模块
-#    强制指定 MSVC 版本路径（避免误用 mingw_64 的 Qt）
-set(CMAKE_PREFIX_PATH "D:/Qt/6.9.0/msvc2022_64" ${CMAKE_PREFIX_PATH})
+#    本地开发：指定 MSVC 版本路径（避免误用 mingw_64 的 Qt）
+#    CI 环境：由 install-qt-action 或环境变量提供，此路径不存在时会跳过
+if(EXISTS "D:/Qt/6.9.0/msvc2022_64")
+    set(CMAKE_PREFIX_PATH "D:/Qt/6.9.0/msvc2022_64" ${CMAKE_PREFIX_PATH})
+endif()
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets SerialPort Network Sql Test)
 
 # 6. 定义一个名为 PulseQt 的可执行程序，包含 main.cpp 和 MainWindow.cpp 两个源文件
