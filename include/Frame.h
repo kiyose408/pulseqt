@@ -16,12 +16,7 @@
 #include <cstddef>
 #include <QByteArray>
 #include <QMetaType>
-#include <cstddef>      //size_t
 
-//CRC16-CCITT 查表法(多项式0x1021,初始值0xFFFF)
-//标准测试向量：crc16_ccitt("123456789",9) == 0x29B1
-
-uint16_t crc16_ccitt(const uint8_t *data, size_t len);
 struct Frame
 {
     static constexpr uint16_t HEADER = 0xA55A;    // 帧同步头

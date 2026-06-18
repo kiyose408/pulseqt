@@ -23,7 +23,8 @@ double RealTimeChart::timeToPixelX(uint64_t timestamp, uint64_t latestTs, double
 // 通道值 → 像素 Y
 double RealTimeChart::valueToPixelY(double value, double yMin, double yMax) const
 {
-    // value = yMin → 底部（height-40），value = yMax → 顶部（20）
+    if (qFuzzyCompare(yMax, yMin))
+        return (height() - 40.0) / 2.0;   // 所有值相同 → 居中
     double ratio = (value - yMin) / (yMax - yMin);
     return (height() - 40.0) - ratio * (height() - 60.0);
 }
