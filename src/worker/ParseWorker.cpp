@@ -4,9 +4,9 @@
 
 extern uint16_t crc16_ccitt(const uint8_t *data, size_t len);
 
-ParseWorker::ParseWorker(QObject *parent): QObject(parent)
+ParseWorker::ParseWorker(const QString &dbPath, QObject *parent): QObject(parent)
 {
-    m_dbManager.init("data.db");
+    m_dbManager.init(dbPath);
     m_lastDataTime = QDateTime::currentMSecsSinceEpoch();
 
     m_heartbeatTimer = new QTimer(this);
