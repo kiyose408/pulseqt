@@ -13,7 +13,7 @@ class ParseWorker : public QObject
 {
     Q_OBJECT
 public:
-    explicit ParseWorker(QObject *parent = nullptr);
+    explicit ParseWorker(const QString &dbPath = "data.db", QObject *parent = nullptr);
     ~ParseWorker();
     DataBuffer *buffer();
     DatabaseManager *dbManager();

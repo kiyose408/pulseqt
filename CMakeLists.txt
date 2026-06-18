@@ -79,15 +79,19 @@ enable_testing()
 add_library(PulseQtTestLib STATIC
     src/protocol/ProtocolDecoder.cpp
     src/data/DataBuffer.cpp
+    src/data/DatabaseManager.cpp
+    src/worker/TcpWorker.cpp
+    src/worker/ParseWorker.cpp
     include/ProtocolDecoder.h
     include/Frame.h
     include/DataBuffer.h
     include/DataPoint.h
-    src/data/DatabaseManager.cpp      # ← T024 追加
-    include/DatabaseManager.h         # ← T024 追加
+    include/DatabaseManager.h
+    include/TcpWorker.h
+    include/ParseWorker.h
 )
 target_include_directories(PulseQtTestLib PRIVATE include)
-target_link_libraries(PulseQtTestLib PUBLIC Qt6::Core Qt6::Sql)
+target_link_libraries(PulseQtTestLib PUBLIC Qt6::Core Qt6::Sql Qt6::Network)
 
 # T022 — ProtocolDecoder + Frame 单元测试
 qt_add_executable(TestFrame
@@ -115,6 +119,18 @@ target_include_directories(TestDataBuffer PRIVATE ${CMAKE_BINARY_DIR}/TestDataBu
 target_link_libraries(TestDataBuffer PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME DataBuffer COMMAND TestDataBuffer)
 
+# T025 — 全链路集成测试
+qt_add_executable(TestIntegration
+    tests/TestIntegration.cpp
+)
+target_include_directories(TestIntegration PRIVATE include)
+target_include_directories(TestIntegration PRIVATE ${CMAKE_BINARY_DIR}/TestIntegration_autogen/include_Debug)
+target_link_libraries(TestIntegration PRIVATE PulseQtTestLib Qt6::Test Qt6::Network)
+target_compile_definitions(TestIntegration PRIVATE
+    PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+add_test(NAME Integration COMMAND TestIntegration)
+set_tests_properties(Integration PROPERTIES TIMEOUT 120)
+
 # T024 — DatabaseManager 单元测试
 qt_add_executable(TestDatabaseManager
     tests/TestDatabaseManager.cpp
@@ -125,5 +141,5 @@ target_link_libraries(TestDatabaseManager PRIVATE PulseQtTestLib Qt6::Test Qt6::
 add_test(NAME DatabaseManager COMMAND TestDatabaseManager)
 
 # 测试运行时需 Qt DLL（将 Qt bin 加入 PATH）
-set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager PROPERTIES
+set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
