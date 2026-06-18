@@ -22,10 +22,6 @@ jobs:
             qt-version: "6.5.3"
             qt-arch: win64_msvc2019_64
 
-          - os: macos-13
-            qt-version: "6.5.3"
-            qt-arch: clang_64
-
     steps:
       # ── 1. 检出 ────────────────────────────────────────
       - uses: actions/checkout@v4
