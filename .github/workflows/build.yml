@@ -48,20 +48,30 @@ jobs:
             libxcb-xkb-dev \
             libxcb1-dev \
             libxi-dev \
-            libegl1-mesa-dev
+            libegl1-mesa-dev \
+            libqt6serialport6-dev
 
       # ── 3. 安装 Python（集成测试需要） ──────────────────
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # ── 4. 安装 Qt ─────────────────────────────────────
+      # ── 4. 安装 Qt (Windows) ────────────────────────────
       - name: Install Qt
+        if: runner.os == 'Windows'
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ matrix.qt-version }}
           arch: ${{ matrix.qt-arch }}
           modules: qtwebsockets qtserialport
+
+      # ── 4. 安装 Qt (Linux) ──────────────────────────────
+      - name: Install Qt
+        if: runner.os == 'Linux'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ matrix.qt-version }}
+          arch: ${{ matrix.qt-arch }}
 
       # ── 5. 配置 CMake ──────────────────────────────────
       - name: Configure
