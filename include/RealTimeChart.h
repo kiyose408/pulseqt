@@ -31,7 +31,7 @@ private slots:
     void onRefresh();           //定时器刷新
 
 private:
-    double timeToPixelX(uint64_t timestamp, uint64_t latestTs, double windowMs) const;
+    double timeToPixelX(uint64_t timestamp, qint64 latestTs, double windowMs) const;
     double valueToPixelY(double value, double yMin, double yMax) const;
     void drawBackground(QPainter &p);           //网格＋坐标轴
     void drawCurves (QPainter &p);              //曲线

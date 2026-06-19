@@ -224,11 +224,13 @@ void MainWindow::teardown()
     if (m_channelManager) {
         QMetaObject::invokeMethod(m_channelManager, "disconnectDevice",
                                   Qt::BlockingQueuedConnection);
-        m_channelManager->deleteLater();
+        QMetaObject::invokeMethod(m_channelManager, "deleteLater",
+                                  Qt::BlockingQueuedConnection);
         m_channelManager = nullptr;
     }
     if (m_parseWorker) {
-        m_parseWorker->deleteLater();
+        QMetaObject::invokeMethod(m_parseWorker, "deleteLater",
+                                  Qt::BlockingQueuedConnection);
         m_parseWorker = nullptr;
     }
 
@@ -248,7 +250,7 @@ void MainWindow::teardown()
 
 void MainWindow::onStart()
 {
-    if (!m_parseWorker) return;
+    if (!m_parseWorker || !m_connected) return;
     QMetaObject::invokeMethod(m_parseWorker, "setCollecting",
                               Qt::QueuedConnection, Q_ARG(bool, true));
     m_collecting = true;
