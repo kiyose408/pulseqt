@@ -83,6 +83,9 @@ add_library(PulseQtTestLib STATIC
     src/protocol/ProtocolDecoder.cpp
     src/data/DataBuffer.cpp
     src/data/DatabaseManager.cpp
+    src/communication/ChannelManager.cpp
+    src/communication/TcpChannel.cpp
+    src/communication/ChannelRegistry.cpp
     src/worker/TcpWorker.cpp
     src/worker/ParseWorker.cpp
     include/ProtocolDecoder.h
@@ -90,6 +93,10 @@ add_library(PulseQtTestLib STATIC
     include/DataBuffer.h
     include/DataPoint.h
     include/DatabaseManager.h
+    include/IChannel.h
+    include/ChannelManager.h
+    include/ChannelRegistry.h
+    include/TcpChannel.h
     include/TcpWorker.h
     include/ParseWorker.h
 )

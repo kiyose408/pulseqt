@@ -225,3 +225,63 @@ yMin -= pad; yMax += pad;
 ```
 
 **注意**：Y 轴刻度标签仍显示 0–1024（`drawBackground` 中硬编码），后期 T033 多 Y 轴任务时统一改。当前修复确保曲线定位正确——12-bit ADC 设备数据不会被压扁。
+
+---
+
+## Bug ⑭ · 断开连接时崩溃 — `abort()` 触发 `readyRead` 访问半销毁缓冲区
+
+**发现位置**：用户报"点击断开后软件终止"，ASSERT `bytes <= bufferSize` in qringbuffer.cpp。
+
+**根因**：`TcpChannel::close()` 直接调用 `m_socket->abort()`，此时 socket 缓冲区中可能还有待处理数据。`abort()` 触发 `readyRead` 信号 → lambda 调用 `m_socket->readAll()` → 访问正在销毁的 QRingBuffer → 断言失败。
+
+**修复**：`abort()` 前先 `m_socket->disconnect()` 切断所有信号连接。
+
+---
+
+## Bug ⑮ · 图表拖拽方向反直觉
+
+**发现位置**：用户反馈"鼠标向右拖，数据往左跑"。
+
+**根因**：`mouseMoveEvent` 中 `m_xOffset -= dx`，注释说"右拖=增大"，代码却减。注释和代码反了。
+
+**修复**：`-=` → `+=`。
+
+---
+
+## Bug ⑯ · 数据表列宽不均衡——后两列被挤到屏幕外
+
+**发现位置**：用户反馈"只看得到时间戳和 CH1 和部分 CH2"。
+
+**根因**：`setStretchLastSection(true)` 仅拉伸最后一列，前三列用默认窄宽度。
+
+**修复**：改为 `setSectionResizeMode(QHeaderView::Stretch)` 所有列均分宽度。
+
+---
+
+## Bug ⑰ · Y 轴刻度与数据不同步
+
+**发现位置**：暗色主题开发中发现刻度标签滞后一帧。
+
+**根因**：`paintEvent` 中 `drawBackground`（画刻度）先于 `drawCurves`（算 Y 范围）执行。刻度读到的是上一帧的 `m_curYMin/YMax`。
+
+**修复**：提取 `computeYRange()` 在 `paintEvent` 最前面执行，存储到成员变量，`drawBackground` 和 `drawCurves` 共用同一次计算结果。
+
+---
+
+## Bug ⑱ · `computeYRange` 和 `drawCurves` 各取一次 snapshot
+
+**发现位置**：代码审查。
+
+**根因**：两次 snapshot 之间可能有并发写入，Y 范围可能不覆盖 drawCurves 实际渲染的数据。
+
+**状态**：已识别，暂未修（低概率，且后果仅为 Y 范围略窄）。
+
+---
+
+## 累计统计
+
+| 级别 | 数量 | 编号 |
+|:--:|:--:|------|
+| 🔴 阻塞 | 3 | ④ ⑤ ⑭ |
+| 🟡 功能 | 10 | ① ② ③ ⑦ ⑨ ⑪ ⑬ ⑮ ⑯ ⑰ |
+| 🟢 工程 | 5 | ⑥ ⑧ ⑩ ⑫ ⑱ |
