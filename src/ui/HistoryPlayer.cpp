@@ -109,7 +109,7 @@ void HistoryPlayer::queryAndShow(uint64_t centerTime)
     // 查询范围 = 图表当前时间窗口（跟随缩放; 最大 120s）
     //    从图表实时读数，不依赖 setTimeWindow 一次性设置
     double   winSec    = m_chart ? m_chart->timeWindow() : m_timeWindow;
-    uint64_t querySpan = static_cast<uint64_t>(winSec * 1200.0);
+    uint64_t querySpan = static_cast<uint64_t>(winSec * 1000.0 * 1.2); // 秒→ms +20%余量
     uint64_t tBegin    = (centerTime > querySpan) ? (centerTime - querySpan) : 0;
     uint64_t tEnd      = centerTime;  // 滑块 = 最右侧，不查未来
 
