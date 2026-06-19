@@ -96,3 +96,69 @@ uint64_t latestTs = QDateTime::currentMSecsSinceEpoch();
 **根因**：`ChannelManager::disconnect` 与基类 `QObject::disconnect` 同名，覆盖了 Qt 的信号断开方法。
 
 **修复**：重命名为 `disconnectDevice()`。
+
+---
+
+## Bug ⑦ · X 轴墙钟时间 `uint64_t` 下溢风险（NTP/夏令时回拨）
+
+**发现位置**：重构后代码审查 #3。
+
+**现象**：`drawCurves()` 中 `latestTs = QDateTime::currentMSecsSinceEpoch()` 返回 `qint64`，但被存为 `uint64_t`。NTP 校时或夏令时导致时钟回跳时，`latestTs - timestamp` 作为无符号数回绕成 ~2^64，所有数据点被推到屏幕外。
+
+**修复**：
+
+```cpp
+// 旧：uint64_t latestTs（时钟回拨 → 回绕）
+uint64_t latestTs = QDateTime::currentMSecsSinceEpoch();
+double ratio = (latestTs - timestamp) / windowMs;
+
+// 新：qint64 + 回拨守卫
+qint64 latestTs = QDateTime::currentMSecsSinceEpoch();
+qint64 delta = latestTs - static_cast<qint64>(timestamp);
+if (delta < 0) delta = 0;   // 未来数据置右边缘
+```
+
+同时更新 `timeToPixelX` 签名和 `minTs` 计算为 `qint64`。
+
+---
+
+## Bug ⑧ · `teardown()` 中 `deleteLater` 可能不被事件循环处理
+
+**发现位置**：重构后代码审查 #2。
+
+**现象**：`teardown()` 中调用 `m_channelManager->deleteLater()` 将 `DeferredDelete` 投递到 commThread，但紧接着 `quit()/wait()` 可能在事件循环处理 `DeferredDelete` 之前退出，导致内存泄漏。
+
+**修复**：
+
+```cpp
+// 旧：deleteLater 投递后 quit/wait 可能跳过 DeferredDelete
+m_channelManager->deleteLater();
+m_commThread->quit();
+m_commThread->wait();
+
+// 新：BlockingQueuedConnection 确保在所属线程执行完毕
+QMetaObject::invokeMethod(m_channelManager, "deleteLater",
+                          Qt::BlockingQueuedConnection);
+m_commThread->quit();
+m_commThread->wait();
+```
+
+---
+
+## Bug ⑨ · 断开状态下点"开始"显示"采集中…"
+
+**发现位置**：重构后代码审查 #6。
+
+**现象**：`onStart()` 只检查 `m_parseWorker`（线程存在），不检查 `m_connected`（通道在线）。断开后点"开始"，标签显示"采集中…"但无数据流入。
+
+**修复**：`onStart()` 加 `|| !m_connected` 守卫。
+
+---
+
+## Bug ⑩ · `ParseWorker.cpp` extern 声明可能与 `Frame.h` 不同步
+
+**发现位置**：重构后代码审查 #7。
+
+**现象**：`ParseWorker.cpp` 用 `extern uint16_t crc16_ccitt(...)` 前置声明，而非 `#include "Frame.h"`。两个声明可能不同步。
+
+**修复**：删除 extern 声明，改为 `#include "Frame.h"`。
