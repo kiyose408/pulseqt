@@ -54,10 +54,6 @@ qt_add_executable(PulseQt
     src/data/DataTableModel.cpp
     include/RealTimeChart.h
     src/ui/RealTimeChart.cpp
-    include/SerialWorker.h
-    src/worker/SerialWorker.cpp
-    include/TcpWorker.h
-    src/worker/TcpWorker.cpp
     include/ParseWorker.h
     src/worker/ParseWorker.cpp
     include/HistoryPlayer.h

@@ -24,7 +24,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    onDisconnect();    // 关闭前清理线程
+    teardown();
     event->accept();
 }
 
@@ -144,99 +144,123 @@ void MainWindow::onAbout()
 
 void MainWindow::onConnect()
 {
-    if (m_commThread) return;   // 已连接
+    if (m_connected) return;   // 已连接
 
-    // ① 创建线程
-    m_commThread  = new QThread(this);
-    m_parseThread = new QThread(this);
+    // ── 首次连接：创建线程 + 通道 + 解析器 ──────────
+    if (!m_parseWorker) {
+        m_commThread  = new QThread(this);
+        m_parseThread = new QThread(this);
 
-    // ② 创建 Worker（无 parent，之后 moveToThread 再设归属）
-    m_tcpWorker   = new TcpWorker("127.0.0.1", 9999);
-    m_parseWorker = new ParseWorker();
+        auto *tcpChannel = new TcpChannel("127.0.0.1", 9999);
+        m_channelManager = new ChannelManager();
+        m_channelManager->setChannel(tcpChannel);
+        m_parseWorker    = new ParseWorker();
 
-    // ③ 移入对应线程
-    m_tcpWorker->moveToThread(m_commThread);
-    m_parseWorker->moveToThread(m_parseThread);
+        m_channelManager->moveToThread(m_commThread);
+        m_parseWorker->moveToThread(m_parseThread);
 
-    // ④ 信号串联（全部 QueuedConnection）
-    connect(m_tcpWorker, &TcpWorker::rawDataReceived,
-            m_parseWorker, &ParseWorker::onRawDataReceived,
-            Qt::QueuedConnection);
+        // 信号接线：ChannelManager ↔ ParseWorker
+        connect(m_channelManager, &ChannelManager::readyRead,
+                m_parseWorker, &ParseWorker::onRawDataReceived,
+                Qt::QueuedConnection);
+        connect(m_parseWorker, &ParseWorker::writeData,
+                m_channelManager, &ChannelManager::writeData,
+                Qt::QueuedConnection);
+        connect(m_parseWorker, &ParseWorker::dataPointReady,
+                this, [this]() {}, Qt::QueuedConnection);
 
-    // 反向通道：ParseWorker 发心跳帧 → TcpWorker 发送
-    connect(m_parseWorker, &ParseWorker::writeData,
-            m_tcpWorker, &TcpWorker::write,
-            Qt::QueuedConnection);
+        // 状态更新
+        connect(m_channelManager, &ChannelManager::connected,
+                this, [this]() { m_statusLabel->setText("已连接"); },
+                Qt::QueuedConnection);
+        connect(m_channelManager, &ChannelManager::disconnected,
+                this, [this]() {
+                    if (m_collecting) m_statusLabel->setText("已断开(重连中)");
+                    else m_statusLabel->setText("已断开");
+                }, Qt::QueuedConnection);
 
-    connect(m_parseWorker, &ParseWorker::dataPointReady,
-            this, [this]() { /* UI 稍后刷新 */ },
-            Qt::QueuedConnection);
+        // 注入数据源
+        setDataBuffer(m_parseWorker->buffer());
+        m_historyPlayer->setDbPath("data.db");
+        m_historyPlayer->setDataBuffer(m_parseWorker->buffer());
+        m_historyPlayer->loadTimeRange();
 
-    connect(m_tcpWorker, &TcpWorker::connected,
-            this, [this]() { m_statusLabel->setText("已连接"); },
-            Qt::QueuedConnection);
+        m_commThread->start();
+        m_parseThread->start();
+    }
 
-    connect(m_tcpWorker, &TcpWorker::disconnected,
-            this, [this]() {
-                if (m_collecting) m_statusLabel->setText("已断开(重连中)");
-                else m_statusLabel->setText("已断开");
-            }, Qt::QueuedConnection);
-
-    // ⑤ 注入数据源到 UI
-    setDataBuffer(m_parseWorker->buffer());
-    m_historyPlayer->setDbPath("data.db");
-    m_historyPlayer->setDataBuffer(m_parseWorker->buffer());
-    m_historyPlayer->loadTimeRange();
-    // ⑥ 启动线程
-    m_commThread->start();
-    m_parseThread->start();
-
-    // ⑦ 让通信线程打开 TCP
-    QMetaObject::invokeMethod(m_tcpWorker, "open", Qt::QueuedConnection);
-
+    // ── 发起连接（首次 / 重连） ──────────────────────
+    QMetaObject::invokeMethod(m_channelManager, "connectToDevice",
+                              Qt::QueuedConnection);
+    m_connected = true;
     m_statusLabel->setText("连接中...");
 }
 
 void MainWindow::onDisconnect()
 {
+    if (!m_connected) return;
+
     m_collecting = false;
-    if (!m_commThread) return;
+    m_connected  = false;
 
-    setDataBuffer(nullptr);
+    // 通知 ParseWorker 停止采集
+    if (m_parseWorker)
+        QMetaObject::invokeMethod(m_parseWorker, "setCollecting",
+                                  Qt::QueuedConnection, Q_ARG(bool, false));
 
-    // ① 让通信线程自己关 socket（用 invokeMethod，不是直接调）
-    QMetaObject::invokeMethod(m_tcpWorker, "close", Qt::QueuedConnection);
-
-    // ② Worker 用 deleteLater —— 在自己的线程里自杀
-    m_tcpWorker->deleteLater();
-    m_parseWorker->deleteLater();
-
-    // ③ 线程退出
-    m_commThread->quit();
-    m_parseThread->quit();
-    m_commThread->wait();
-    m_parseThread->wait();
-
-    m_tcpWorker   = nullptr;
-    m_parseWorker = nullptr;
-    delete m_commThread;  m_commThread  = nullptr;
-    delete m_parseThread; m_parseThread = nullptr;
+    // 关闭通道（ParseWorker + DataBuffer + 线程存活，历史回放可用）
+    QMetaObject::invokeMethod(m_channelManager, "disconnectDevice",
+                              Qt::QueuedConnection);
 
     m_statusLabel->setText("已断开");
 }
 
+// ── 全部拆光：仅窗口关闭时调用 ──────────────────────
+void MainWindow::teardown()
+{
+    m_collecting = false;
+    m_connected  = false;
+
+    if (m_channelManager) {
+        QMetaObject::invokeMethod(m_channelManager, "disconnectDevice",
+                                  Qt::BlockingQueuedConnection);
+        m_channelManager->deleteLater();
+        m_channelManager = nullptr;
+    }
+    if (m_parseWorker) {
+        m_parseWorker->deleteLater();
+        m_parseWorker = nullptr;
+    }
+
+    if (m_commThread) {
+        m_commThread->quit();
+        m_commThread->wait();
+        delete m_commThread;
+        m_commThread = nullptr;
+    }
+    if (m_parseThread) {
+        m_parseThread->quit();
+        m_parseThread->wait();
+        delete m_parseThread;
+        m_parseThread = nullptr;
+    }
+}
+
 void MainWindow::onStart()
 {
-    if (!m_commThread) onConnect();
-    if (m_parseWorker)
-        QMetaObject::invokeMethod(m_parseWorker, "setCollecting", Qt::QueuedConnection, Q_ARG(bool, true));
+    if (!m_parseWorker) return;
+    QMetaObject::invokeMethod(m_parseWorker, "setCollecting",
+                              Qt::QueuedConnection, Q_ARG(bool, true));
+    m_collecting = true;
     m_statusLabel->setText("采集中...");
 }
 
 void MainWindow::onStop()
 {
+    m_collecting = false;
     if (m_parseWorker)
-        QMetaObject::invokeMethod(m_parseWorker, "setCollecting", Qt::QueuedConnection, Q_ARG(bool, false));
+        QMetaObject::invokeMethod(m_parseWorker, "setCollecting",
+                                  Qt::QueuedConnection, Q_ARG(bool, false));
     m_statusLabel->setText("已暂停");
 }
 
