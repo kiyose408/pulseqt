@@ -150,7 +150,16 @@ target_include_directories(TestDatabaseManager PRIVATE ${CMAKE_BINARY_DIR}/TestD
 target_link_libraries(TestDatabaseManager PRIVATE PulseQtTestLib Qt6::Test Qt6::Sql)
 add_test(NAME DatabaseManager COMMAND TestDatabaseManager)
 
-# T028 — ChannelManager 单元测试
+# T028 — ParseWorker 单元测试
+qt_add_executable(TestParseWorker
+    tests/TestParseWorker.cpp
+)
+target_include_directories(TestParseWorker PRIVATE include)
+target_include_directories(TestParseWorker PRIVATE ${CMAKE_BINARY_DIR}/TestParseWorker_autogen/include_Debug)
+target_link_libraries(TestParseWorker PRIVATE PulseQtTestLib Qt6::Test Qt6::Sql)
+add_test(NAME ParseWorker COMMAND TestParseWorker)
+
+# T029 — ChannelManager 单元测试
 qt_add_executable(TestChannelManager
     tests/TestChannelManager.cpp
 )
@@ -170,6 +179,6 @@ add_test(NAME ChannelRegistry COMMAND TestChannelRegistry)
 
 # 测试运行时需 Qt DLL（Windows 专用）
 if(WIN32)
-    set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration ChannelManager ChannelRegistry PROPERTIES
+    set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration ChannelManager ChannelRegistry ParseWorker PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
 endif()
