@@ -21,8 +21,8 @@
 #include "RealTimeChart.h"
 #include "DataBuffer.h"
 #include "ChannelManager.h"
-#include "IChannel.h"
-#include "TcpChannel.h"
+#include "ChannelRegistry.h"
+#include "ConnectionDialog.h"
 #include "ParseWorker.h"      // 解码 + 缓冲 + DB
 #include "HistoryPlayer.h"
 

@@ -3,7 +3,6 @@
 //==============================================================================
 
 #include "MainWindow.h"
-#include "TcpChannel.h"
 #include <QCloseEvent>
 #include <QHeaderView>
 #include <QMenuBar>
@@ -146,14 +145,23 @@ void MainWindow::onConnect()
 {
     if (m_connected) return;   // 已连接
 
-    // ── 首次连接：创建线程 + 通道 + 解析器 ──────────
+    // ── 首次连接：弹对话框 → 注册表创建通道 ──────────
     if (!m_parseWorker) {
-        m_commThread  = new QThread(this);
-        m_parseThread = new QThread(this);
+        ConnectionDialog dlg(this);
+        if (dlg.exec() != QDialog::Accepted)
+            return;
 
-        auto *tcpChannel = new TcpChannel("127.0.0.1", 9999);
+        auto *channel = ChannelRegistry::create(
+            dlg.selectedChannelId(), dlg.config());
+        if (!channel) {
+            QMessageBox::warning(this, "错误", "无法创建通道");
+            return;
+        }
+
+        m_commThread     = new QThread(this);
+        m_parseThread    = new QThread(this);
         m_channelManager = new ChannelManager();
-        m_channelManager->setChannel(tcpChannel);
+        m_channelManager->setChannel(channel);
         m_parseWorker    = new ParseWorker();
 
         m_channelManager->moveToThread(m_commThread);

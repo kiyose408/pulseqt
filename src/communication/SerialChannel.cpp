@@ -104,3 +104,45 @@ qint64 SerialChannel::write(const QByteArray &data)
         return -1;
     return m_serialPort->write(data);
 }
+
+// ── 自注册到全局通道注册表 ──────────────────────────
+#include "ChannelRegistry.h"
+#include <QSerialPort>
+static const bool serialRegistered = []() {
+    ChannelDescriptor desc;
+    desc.id   = "serial";
+    desc.name = "串口";
+    desc.configFields = {
+#ifdef Q_OS_WIN
+        ConfigField("portName", "串口号", "string", "COM3"),
+#else
+        ConfigField("portName", "串口号", "string", "/dev/ttyUSB0"),
+#endif
+        ConfigField("baudRate", "波特率", "combo", 115200,
+            {"9600","19200","38400","57600","115200","230400","460800","921600"}),
+        ConfigField("dataBits", "数据位", "combo", 8,
+            {"5","6","7","8"}),
+        ConfigField("stopBits", "停止位", "combo", 1,
+            {"1","1.5","2"}),
+        ConfigField("parity",   "校验位", "combo", "None",
+            {"None","Even","Odd"}),
+    };
+    desc.factory = +[](const QVariantMap &cfg, QObject *parent) -> IChannel* {
+        auto parity = QSerialPort::NoParity;
+        QString p = cfg.value("parity", "None").toString();
+        if (p == "Even") parity = QSerialPort::EvenParity;
+        else if (p == "Odd") parity = QSerialPort::OddParity;
+
+        auto stop = QSerialPort::OneStop;
+        if (cfg.value("stopBits").toDouble() >= 2.0) stop = QSerialPort::TwoStop;
+        else if (cfg.value("stopBits").toDouble() >= 1.5) stop = QSerialPort::OneAndHalfStop;
+
+        return new SerialChannel(
+            cfg["portName"].toString(),
+            cfg["baudRate"].toInt(),
+            static_cast<QSerialPort::DataBits>(cfg["dataBits"].toInt()),
+            stop, parity, parent);
+    };
+    ChannelRegistry::registerChannel(desc);
+    return true;
+}();
