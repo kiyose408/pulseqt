@@ -42,6 +42,10 @@ qt_add_executable(PulseQt
     src/communication/TcpChannel.cpp
     include/ChannelManager.h
     src/communication/ChannelManager.cpp
+    include/ChannelRegistry.h
+    src/communication/ChannelRegistry.cpp
+    include/ConnectionDialog.h
+    src/ui/ConnectionDialog.cpp
     include/Frame.h
     include/ProtocolDecoder.h
     src/protocol/ProtocolDecoder.cpp

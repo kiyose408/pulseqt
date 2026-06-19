@@ -103,3 +103,22 @@ qint64 TcpChannel::write(const QByteArray &data)
         return -1;
     return m_socket->write(data);
 }
+
+// ── 自注册到全局通道注册表 ──────────────────────────
+#include "ChannelRegistry.h"
+static const bool tcpRegistered = []() {
+    ChannelDescriptor desc;
+    desc.id   = "tcp";
+    desc.name = "TCP 客户端";
+    desc.configFields = {
+        ConfigField("host", "主机地址", "string", "127.0.0.1"),
+        ConfigField("port", "端口",     "int",    9999),
+    };
+    desc.factory = +[](const QVariantMap &cfg, QObject *parent) -> IChannel* {
+        return new TcpChannel(
+            cfg.value("host", "127.0.0.1").toString(),
+            cfg.value("port", 9999).toUInt(), parent);
+    };
+    ChannelRegistry::registerChannel(desc);
+    return true;
+}();
