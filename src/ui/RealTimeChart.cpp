@@ -182,10 +182,10 @@ void RealTimeChart::mousePressEvent(QMouseEvent *event)
 void RealTimeChart::mouseMoveEvent(QMouseEvent *event)
 {
     if(!m_dragging) return;
-    // 鼠标向右拖 = 看点过去 = xOffset 增大
+    // 右拖 → 看更新的数据，左拖 → 看更旧的数据
     double dx = event->pos().x() - m_lastMousePos.x();
-    double msPerPixel = (m_timeWindow * 1000.0)/(width() - 70.0);
-    m_xOffset -= dx * msPerPixel;       //修正方向
+    double msPerPixel = (m_timeWindow * 1000.0) / (width() - 70.0);
+    m_xOffset += dx * msPerPixel;
 
     m_lastMousePos = event ->pos();
     update();
