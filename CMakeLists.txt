@@ -25,7 +25,13 @@ set(CMAKE_AUTOMOC ON)
 if(EXISTS "D:/Qt/6.9.0/msvc2022_64")
     set(CMAKE_PREFIX_PATH "D:/Qt/6.9.0/msvc2022_64" ${CMAKE_PREFIX_PATH})
 endif()
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets SerialPort Network Sql Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network Sql Test)
+# SerialPort: Windows 开发环境强制需要，Linux CI 可选
+if(WIN32)
+    find_package(Qt6 REQUIRED COMPONENTS SerialPort)
+else()
+    find_package(Qt6 QUIET COMPONENTS SerialPort)
+endif()
 
 # 6. 定义一个名为 PulseQt 的可执行程序，包含 main.cpp 和 MainWindow.cpp 两个源文件
 #    (注：qt_add_executable 是 Qt6 推荐的命令，能更好地处理跨平台特性)
