@@ -15,7 +15,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
-            qt-version: "6.5.3"
+            qt-version: "6.2.4"
             qt-arch: linux_gcc_64
 
           - os: windows-2022
@@ -23,59 +23,42 @@ jobs:
             qt-arch: win64_msvc2019_64
 
     steps:
-      # ── 1. 检出 ────────────────────────────────────────
       - uses: actions/checkout@v4
 
-      # ── 2. Linux 系统依赖 ──────────────────────────────
-      - name: Install Linux system deps
+      # ── Linux: 系统 apt 安装 Qt ─────────────────────────
+      - name: Install Qt (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential \
-            libgl1-mesa-dev \
-            libxkbcommon-dev \
-            libxcb-cursor-dev \
-            libxcb-icccm4-dev \
-            libxcb-image0-dev \
-            libxcb-keysyms1-dev \
-            libxcb-randr0-dev \
-            libxcb-render-util0-dev \
-            libxcb-shape0-dev \
-            libxcb-sync-dev \
-            libxcb-xfixes0-dev \
-            libxcb-xinerama0-dev \
-            libxcb-xkb-dev \
-            libxcb1-dev \
-            libxi-dev \
-            libegl1-mesa-dev
+            qt6-base-dev \
+            libqt6serialport6-dev \
+            libqt6sql6-sqlite \
+            qt6-base-dev-tools \
+            libgl1-mesa-dev
 
-      # ── 3. 安装 Python（集成测试需要） ──────────────────
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      # ── 4. 安装 Qt ─────────────────────────────────────
-      - name: Install Qt
+      # ── Windows: aqt 安装 Qt ────────────────────────────
+      - name: Install Qt (Windows)
+        if: runner.os == 'Windows'
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ matrix.qt-version }}
           arch: ${{ matrix.qt-arch }}
           modules: qtwebsockets qtserialport
 
-      # ── 5. 配置 CMake ──────────────────────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
-      # ── 6. 构建 ────────────────────────────────────────
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      # ── 7. 运行测试（仅单元测试，集成测试需 Python 模拟器） ──
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure -E Integration
 
-      # ── 8. Windows: 上传构建产物（可选 NSIS 包） ───────
       - name: Upload artifact (Windows)
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
