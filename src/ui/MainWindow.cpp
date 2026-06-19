@@ -83,7 +83,7 @@ void MainWindow::setupCentralArea()
     m_tableView  = new QTableView(this);
     m_tableView->setModel(m_tableModel);
     m_tableView->setAlternatingRowColors(true);
-    m_tableView->horizontalHeader()->setStretchLastSection(true);
+    m_tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     m_tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     connect(m_tableModel, &DataTableModel::dataRefreshed, this, [this]() {
         m_tableView->scrollToBottom();

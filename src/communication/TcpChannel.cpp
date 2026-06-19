@@ -79,10 +79,9 @@ bool TcpChannel::open()
 void TcpChannel::close()
 {
     if (m_socket) {
-        // abort()：立即断开，不等待 TCP 缓冲区排空
-        // 对比 disconnectFromHost()：温和断开，等缓冲数据发完再关
+        // 先切断信号防止 abort 触发 readyRead 访问半销毁缓冲区
+        m_socket->disconnect();
         m_socket->abort();
-
         delete m_socket;
         m_socket = nullptr;
         emit disconnected();
