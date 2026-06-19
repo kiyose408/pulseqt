@@ -168,7 +168,7 @@ void ProtocolDecoder::feed(const QByteArray &data)
                 frame.type    = m_frameType;
                 frame.payload = m_payload;
 
-                qInfo() << "Frame decoded: type=" << Qt::hex << frame.type
+                qDebug() << "Frame decoded: type=" << Qt::hex << frame.type
                         << "payload size=" << frame.payload.size();
 
                 emit frameDecoded(frame);
