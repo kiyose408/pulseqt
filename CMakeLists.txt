@@ -143,6 +143,8 @@ target_include_directories(TestDatabaseManager PRIVATE ${CMAKE_BINARY_DIR}/TestD
 target_link_libraries(TestDatabaseManager PRIVATE PulseQtTestLib Qt6::Test Qt6::Sql)
 add_test(NAME DatabaseManager COMMAND TestDatabaseManager)
 
-# 测试运行时需 Qt DLL（将 Qt bin 加入 PATH）
-set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration PROPERTIES
-    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
+# 测试运行时需 Qt DLL（Windows 专用）
+if(WIN32)
+    set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
+endif()

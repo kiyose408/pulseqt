@@ -100,9 +100,13 @@ bool SerialChannel::isOpen() const
 
 qint64 SerialChannel::write(const QByteArray &data)
 {
-    if (!m_serialPort || !m_serialPort->isOpen())
+    if (!m_serialPort || !m_serialPort->isOpen()) {
+        emit errorOccurred("Serial port not open");
         return -1;
-    return m_serialPort->write(data);
+    }
+    qint64 n = m_serialPort->write(data);
+    if (n < 0) emit errorOccurred(m_serialPort->errorString());
+    return n;
 }
 
 // ── 自注册到全局通道注册表 ──────────────────────────

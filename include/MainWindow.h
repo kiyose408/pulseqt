@@ -46,7 +46,8 @@ private:
     void setupCentralArea();
     void setupStatusBar();
 
-    RealTimeChart  *m_chart       = nullptr;
+    RealTimeChart  *m_chart       = nullptr;   // 实时曲线
+    RealTimeChart  *m_playbackChart = nullptr;  // 回放曲线（独立 buffer）
     QTableView     *m_tableView   = nullptr;
     DataTableModel *m_tableModel  = nullptr;
     QLabel         *m_statusLabel = nullptr;

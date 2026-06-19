@@ -8,11 +8,14 @@
 #include "ChannelRegistry.h"
 #include "IChannel.h"
 #include <QDebug>
+#include <QMutex>
 
 QVector<ChannelDescriptor> ChannelRegistry::s_registry;
+static QMutex s_registryMutex;
 
 void ChannelRegistry::registerChannel(const ChannelDescriptor &desc)
 {
+    QMutexLocker lock(&s_registryMutex);
     // 防止重复注册（同一 id 只注册一次）
     for (const auto &d : s_registry) {
         if (d.id == desc.id) {
@@ -25,6 +28,7 @@ void ChannelRegistry::registerChannel(const ChannelDescriptor &desc)
 
 QVector<ChannelDescriptor> ChannelRegistry::availableChannels()
 {
+    QMutexLocker lock(&s_registryMutex);
     return s_registry;
 }
 
@@ -32,6 +36,7 @@ IChannel* ChannelRegistry::create(const QString &id,
                                    const QVariantMap &config,
                                    QObject *parent)
 {
+    QMutexLocker lock(&s_registryMutex);
     for (const auto &desc : s_registry) {
         if (desc.id == id) {
             if (desc.factory)
