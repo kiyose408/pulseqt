@@ -26,7 +26,7 @@ if(EXISTS "D:/Qt/6.9.0/msvc2022_64")
     set(CMAKE_PREFIX_PATH "D:/Qt/6.9.0/msvc2022_64" ${CMAKE_PREFIX_PATH})
 endif()
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network Sql Test)
-# SerialPort: Windows 开发环境强制需要，Linux CI 可选
+# SerialPort: 仅 Windows 需要（Linux CI 用 QUIET 可选）
 if(WIN32)
     find_package(Qt6 REQUIRED COMPONENTS SerialPort)
 else()
