@@ -162,3 +162,66 @@ m_commThread->wait();
 **现象**：`ParseWorker.cpp` 用 `extern uint16_t crc16_ccitt(...)` 前置声明，而非 `#include "Frame.h"`。两个声明可能不同步。
 
 **修复**：删除 extern 声明，改为 `#include "Frame.h"`。
+
+---
+
+## Bug ⑪ · `killStaleSimulators()` Windows 专用 → Linux CI 失效
+
+**发现位置**：代码审查 — 集成测试可移植性。
+
+**现象**：`tests/TestIntegration.cpp` 中 `killStaleSimulators()` 硬编码 `taskkill /f /im python.exe`。Linux CI runner 上此命令不存在，残留 Python 进程占用 9999 端口，后续测试端口轮询超时失败。
+
+**修复**：
+
+```cpp
+void killStaleSimulators()
+{
+#ifdef Q_OS_WIN
+    QProcess::execute("taskkill", {"/f", "/im", "python.exe"});
+#else
+    QProcess::execute("pkill", {"-f", "tcp_wave_simulator"});
+#endif
+    QTest::qWait(500);
+}
+```
+
+**备选**：`pkill` 在 macOS 可能不存在（`killall` 替代），后续 CI 实战时再细化。
+
+---
+
+## Bug ⑫ · `SerialWorker` 死代码残留
+
+**发现位置**：代码审查 #2 — 死代码。
+
+**现象**：`include/SerialWorker.h` + `src/worker/SerialWorker.cpp` 声明和实现完整，但 `72cb857` 已从 PulseQt 目标移除编译，没有任何 target 引用它们。死代码增加维护困惑。
+
+**修复**：物理删除两个文件。串口功能通过 `SerialChannel`（IChannel 体系）实现，已编译进 PulseQt 主程序。
+
+---
+
+## Bug ⑬ · Y 轴硬编码 0–1024 → 超出范围静默裁剪
+
+**发现位置**：代码审查 #3 — 可视化缺陷。
+
+**现象**：`RealTimeChart::drawCurves()` 中 `yMin = 0, yMax = 1024` 硬编码。若设备发送 0–4095（12-bit ADC）或负值数据，曲线被压扁到图表顶部/底部，无任何视觉提示。
+
+**修复**：Y 轴范围从可见数据点中自适应计算，加 10% 上下边距。兜底值 0–1024（无数据时使用）。
+
+```cpp
+// 旧：硬编码
+double yMin = 0, yMax = 1024;
+
+// 新：遍历可见数据点自适应计算
+bool first = true;
+for (it = lower_bound(...); it != snap.end(); ++it) {
+    for (int ch = 0; ch < channels; ++ch) {
+        double v = it->channels[ch];
+        if (first) { yMin = yMax = v; first = false; }
+        else { if (v < yMin) yMin = v; if (v > yMax) yMax = v; }
+    }
+}
+double pad = (yMax - yMin) * 0.1;
+yMin -= pad; yMax += pad;
+```
+
+**注意**：Y 轴刻度标签仍显示 0–1024（`drawBackground` 中硬编码），后期 T033 多 Y 轴任务时统一改。当前修复确保曲线定位正确——12-bit ADC 设备数据不会被压扁。

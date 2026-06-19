@@ -211,10 +211,27 @@ void RealTimeChart::drawCurves(QPainter &p)
     qint64 minTs    = latestTs - static_cast<qint64>(windowMs + m_xOffset);
     if (minTs < 0) minTs = 0;
 
-    // ── Y 轴范围（后续可自适应）─────────────────────
-    double yMin = 0, yMax = 1024;
-
     int channels = snap[0].channels.size();
+
+    // ── Y 轴范围：从可见数据中自适应计算 ──────────────
+    double yMin = 0, yMax = 1024;   // 兜底（无数据时）
+    {
+        bool first = true;
+        auto it = std::lower_bound(snap.begin(), snap.end(), minTs,
+            [](const DataPoint &dp, uint64_t ts) { return dp.timestamp < ts; });
+        for (; it != snap.end(); ++it) {
+            for (int ch = 0; ch < channels && ch < 8; ++ch) {
+                double v = it->channels[ch];
+                if (first) { yMin = yMax = v; first = false; }
+                else { if (v < yMin) yMin = v; if (v > yMax) yMax = v; }
+            }
+        }
+        if (yMax > yMin) {
+            double pad = (yMax - yMin) * 0.1;
+            yMin -= pad;
+            yMax += pad;
+        }
+    }
 
     for (int ch = 0; ch < channels && ch < 8; ++ch) {
         QPolygonF polyline;

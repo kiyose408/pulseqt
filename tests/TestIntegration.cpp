@@ -36,9 +36,11 @@ private:
     // ── 辅助：清理残留 Python 进程（释放 9999 端口） ──────
     void killStaleSimulators()
     {
-        QProcess killer;
-        killer.start("taskkill", {"/f", "/im", "python.exe"});
-        killer.waitForFinished(3000);
+#ifdef Q_OS_WIN
+        QProcess::execute("taskkill", {"/f", "/im", "python.exe"});
+#else
+        QProcess::execute("pkill", {"-f", "tcp_wave_simulator"});
+#endif
         QTest::qWait(500);
     }
 
