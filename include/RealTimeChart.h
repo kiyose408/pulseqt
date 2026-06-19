@@ -16,8 +16,9 @@ public:
     explicit RealTimeChart(QWidget *parent = nullptr);
 
     void setDataBuffer(DataBuffer *buffer);
-    void setTimeWindow(double seconds);     //X轴时间跨度（默认30s）
-    void setCurrentTime(qint64 t);          //回放时设置当前时间（0=实时模式）
+    void setTimeWindow(double seconds);
+    void setCurrentTime(qint64 t);
+    void setDarkMode(bool dark);            // 暗色主题
     double timeWindow() const;
 
 protected:
@@ -44,6 +45,7 @@ private:
     QPixmap m_offscreen;
     double m_timeWindow = 30.0;         // x轴跨度（秒）
     double m_xOffset = 0.0 ;            //拖拽偏移（毫秒）
+    bool   m_darkMode = false;          // 暗色主题
     double m_curYMin = 0.0;             // 当前 Y 轴下限
     double m_curYMax = 1024.0;          // 当前 Y 轴上限
     qint64 m_latestTs = 0;              // 预计算：右边界时间戳

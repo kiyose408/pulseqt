@@ -54,6 +54,7 @@ private:
 
     bool m_collecting = false;   // 开始/停止采集标记
     bool m_connected  = false;   // 通道已连接（≠ 线程存在）
+    bool m_darkTheme  = false;   // 暗色主题
 
     QThread        *m_commThread     = nullptr;   // 通信线程
     QThread        *m_parseThread    = nullptr;   // 解析线程
@@ -67,6 +68,7 @@ private slots:
     void onConnect();
     void onDisconnect();
     void teardown();              // 全部拆光（仅 closeEvent 调用）
+    void toggleTheme();           // 切换暗色/亮色主题
     void onStart();
     void onStop();
 };
