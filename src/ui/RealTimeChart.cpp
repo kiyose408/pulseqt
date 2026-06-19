@@ -44,28 +44,33 @@ void RealTimeChart::drawBackground(QPainter &p)
     int top    = 20;
     int bottom = h - 40;
 
-    // ── 网格线（浅灰） ──
-    p.setPen(QPen(QColor(0xE0, 0xE0, 0xE0), 0.5));  // 浅灰 0.5px
+    // ── 网格线 ──
+    QColor gridColor  = m_darkMode ? QColor(0x3E,0x3E,0x3E) : QColor(0xE0,0xE0,0xE0);
+    QColor axisColor  = m_darkMode ? QColor(0x88,0x88,0x88) : Qt::black;
+    QColor textColor  = m_darkMode ? QColor(0xDC,0xDC,0xDC) : Qt::black;
+    QColor bgColor    = m_darkMode ? QColor(0x1E,0x1E,0x1E) : Qt::white;
 
+    p.fillRect(left, top, right-left, bottom-top, bgColor);
+
+    p.setPen(QPen(gridColor, 0.5));
     // 水平网格（5 条）
     for (int i = 0; i <= 4; ++i) {
         double y = top + (bottom - top) * i / 4.0;
         p.drawLine(left, static_cast<int>(y), right, static_cast<int>(y));
     }
-
     // 垂直网格（5 条）
     for (int i = 0; i <= 4; ++i) {
         double x = left + (right - left) * i / 4.0;
         p.drawLine(static_cast<int>(x), top, static_cast<int>(x), bottom);
     }
 
-    // ── 坐标轴（黑色 1.5px） ──
-    p.setPen(QPen(Qt::black, 1.5));
+    // ── 坐标轴 ──
+    p.setPen(QPen(axisColor, 1.5));
     p.drawLine(left, bottom, right, bottom);   // X 轴
     p.drawLine(left, top, left, bottom);        // Y 轴
 
-    // ── Y 轴刻度数字 + 标签 ──
-    p.setPen(Qt::black);
+    // ── Y 轴刻度 ──
+    p.setPen(textColor);
     QFont smallFont = p.font();
     smallFont.setPointSize(8);
     p.setFont(smallFont);
@@ -109,6 +114,16 @@ void RealTimeChart::setCurrentTime(qint64 t)
     m_currentTime = t;
 }
 
+void RealTimeChart::setDarkMode(bool dark)
+{
+    m_darkMode = dark;
+    // 更新背景色
+    QPalette pal = palette();
+    pal.setColor(QPalette::Window, dark ? QColor(0x1E,0x1E,0x1E) : Qt::white);
+    setPalette(pal);
+    update();
+}
+
 void RealTimeChart::setTimeWindow(double seconds)
 {
     m_timeWindow = seconds;
@@ -129,7 +144,7 @@ void RealTimeChart::paintEvent(QPaintEvent *)
     // ── 离屏画布 ──
     if (m_offscreen.size() != size())
         m_offscreen = QPixmap(size());
-    m_offscreen.fill(Qt::white);
+    m_offscreen.fill(m_darkMode ? QColor(0x1E,0x1E,0x1E) : Qt::white);
 
     QPainter p(&m_offscreen);
 
@@ -306,7 +321,7 @@ void RealTimeChart::drawLegend(QPainter &p, int channels)
         p.drawRect(x,y,12,12);
 
         //文字
-        p.setPen(Qt::black);
+        p.setPen(m_darkMode ? QColor(0xDC,0xDC,0xDC) : Qt::black);
         p.drawText(x + 16, y + 10, QString("CH%1").arg(i));
 
         y += 16;   // 下一个图例往下排

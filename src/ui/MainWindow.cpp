@@ -3,6 +3,7 @@
 //==============================================================================
 
 #include "MainWindow.h"
+#include <QApplication>
 #include <QCloseEvent>
 #include <QHeaderView>
 #include <QMenuBar>
@@ -48,7 +49,7 @@ void MainWindow::setupMenuBar()
     // ── 视图 ──
     QMenu *viewMenu = menuBar()->addMenu("视图(&V)");
     viewMenu->addAction("显示表格");
-    viewMenu->addAction("暗色主题");
+    viewMenu->addAction("暗色主题", this, &MainWindow::toggleTheme);
 
     // ── 帮助 ──
     QMenu *helpMenu = menuBar()->addMenu("帮助(&H)");
@@ -232,6 +233,36 @@ void MainWindow::onDisconnect()
                               Qt::QueuedConnection);
 
     m_statusLabel->setText("已断开");
+}
+
+// ── 暗色主题切换 ──────────────────────────────────
+void MainWindow::toggleTheme()
+{
+    m_darkTheme = !m_darkTheme;
+
+    if (m_darkTheme) {
+        // Fusion + 暗色调色板
+        QApplication::setStyle("Fusion");
+        QPalette p;
+        p.setColor(QPalette::Window,          QColor(0x2D,0x2D,0x30));
+        p.setColor(QPalette::WindowText,      QColor(0xDC,0xDC,0xDC));
+        p.setColor(QPalette::Base,            QColor(0x1E,0x1E,0x1E));
+        p.setColor(QPalette::AlternateBase,   QColor(0x2A,0x2A,0x2E));
+        p.setColor(QPalette::Button,          QColor(0x3E,0x3E,0x42));
+        p.setColor(QPalette::ButtonText,      QColor(0xDC,0xDC,0xDC));
+        p.setColor(QPalette::Text,            QColor(0xDC,0xDC,0xDC));
+        p.setColor(QPalette::Highlight,       QColor(0x00,0x7A,0xCC));
+        p.setColor(QPalette::HighlightedText, Qt::white);
+        p.setColor(QPalette::ToolTipBase,     QColor(0x2D,0x2D,0x30));
+        p.setColor(QPalette::ToolTipText,     QColor(0xDC,0xDC,0xDC));
+        QApplication::setPalette(p);
+    } else {
+        QApplication::setStyle("");
+        QApplication::setPalette(QApplication::style()->standardPalette());
+    }
+
+    if (m_chart)          m_chart->setDarkMode(m_darkTheme);
+    if (m_playbackChart)  m_playbackChart->setDarkMode(m_darkTheme);
 }
 
 // ── 全部拆光：仅窗口关闭时调用 ──────────────────────
