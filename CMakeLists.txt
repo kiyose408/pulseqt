@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 # 2. 定义项目名称为 PulseQt，版本号为 1.0.0，主要使用的编程语言是 C++
-project(PulseQt VERSION 1.0.0 LANGUAGES CXX)
+project(PulseQt VERSION 1.1.0 LANGUAGES CXX)
 
 # 3. 设置 C++ 编译标准为 C++17
 set(CMAKE_CXX_STANDARD 17)

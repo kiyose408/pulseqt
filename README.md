@@ -1,6 +1,8 @@
 # PulseQt — 多通道数据采集上位机
 
-> 基于 **Qt 6.5 / C++17** 的轻量级工业数据采集系统。通过 TCP 或串口接收传感器二进制数据流，提供实时曲线渲染、SQLite 持久化存储与历史回放功能。
+> 基于 **Qt 6.5 / C++17** 的轻量级工业数据采集系统。通过 TCP / 串口接收传感器二进制数据流，提供实时曲线渲染、独立回放视图、SQLite 持久化存储、暗色主题与完整单元测试体系。
+>
+> **v1.1** · 45 单元测试 · 7 测试二进制 · 双平台 CI
 
 ---
 
@@ -66,41 +68,48 @@
 ### 分层结构
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                       UI 层 (src/ui/)                    │
-│  MainWindow  RealTimeChart  HistoryPlayer  ExportDialog │
-├─────────────────────────────────────────────────────────┤
-│                    数据层 (src/data/)                    │
-│  DataTableModel  DataBuffer  DatabaseManager            │
-├─────────────────────────────────────────────────────────┤
-│                    协议层 (src/protocol/)                │
-│  Frame  ProtocolDecoder                                 │
-├─────────────────────────────────────────────────────────┤
-│                    线程层 (src/worker/)                  │
-│  SerialWorker  TcpWorker  ParseWorker                   │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                       UI 层 (src/ui/)                         │
+│  MainWindow  ConnectionDialog  RealTimeChart×2  HistoryPlayer │
+│  ExportDialog  DataTableModel  (暗色主题)                      │
+├──────────────────────────────────────────────────────────────┤
+│                    通道层 (src/communication/)                 │
+│  ChannelRegistry → ChannelManager → IChannel (虚接口)          │
+│                    ├── TcpChannel                              │
+│                    └── SerialChannel                           │
+├──────────────────────────────────────────────────────────────┤
+│                    数据层 (src/data/)                          │
+│  DataBuffer  DatabaseManager                                  │
+├──────────────────────────────────────────────────────────────┤
+│                    协议层 (src/protocol/)                      │
+│  Frame  ProtocolDecoder (7 状态机)                             │
+├──────────────────────────────────────────────────────────────┤
+│                    线程层 (src/worker/)                        │
+│  ParseWorker (解码+缓冲+DB 落盘)                                │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### 数据流
 
 ```
-TCP 模拟器 (100Hz)
-  │ QTcpSocket::readyRead
+TCP 模拟器 / 串口设备 (100Hz)
+  │ QTcpSocket / QSerialPort
   ▼
-TcpWorker (通信线程)
-  │ rawDataReceived → QueuedConnection
+IChannel (通信线程 · 虚函数多态)
+  │ readyRead → QueuedConnection → ChannelManager 转发
   ▼
 ParseWorker (解析线程)
-  ├── ProtocolDecoder::feed() → 状态机解码
-  ├── DataBuffer::push()      → 环形缓冲
-  ├── DatabaseManager::insert() → SQLite 批量写入
-  ├── Heartbeat Timer          → 心跳检测
+  ├── ProtocolDecoder::feed() → 7 状态机解码
+  ├── DataBuffer::push()      → 环形缓冲 (实时图表)
+  ├── DatabaseManager::insert() → SQLite WAL 批量写入
+  ├── Heartbeat Timer          → 心跳保活
   └── emit dataPointReady()    → QueuedConnection
        │
        ▼
 MainWindow (UI 线程)
-  ├── DataTableModel → QTableView (10FPS)
-  └── RealTimeChart  → paintEvent (25FPS)
+  ├── RealTimeChart (实时)  → paintEvent 自绘
+  ├── RealTimeChart (回放)  → HistoryPlayer 独立驱动
+  └── DataTableModel → QTableView (Stretch 均分列宽)
 ```
 
 ---
@@ -270,7 +279,7 @@ MIT License — 详见 [dist/license.txt](dist/license.txt)
 **Kiyose** — C++ / Qt 开发者
 
 - 仓库：https://gitee.com/kiyose408/pulse_qt
-- 版本：v1.0（2026-06-05）
+- 版本：v1.1（2026-06-20）
 
 ---
 
