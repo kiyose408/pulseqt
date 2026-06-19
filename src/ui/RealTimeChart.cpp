@@ -1,5 +1,6 @@
 #include "RealTimeChart.h"
 #include <algorithm>
+#include <QDateTime>
 
 const QColor RealTimeChart::CH_COLORS[8] = {
     QColor(0xE6, 0x69, 0x4C),  // 橙
@@ -202,7 +203,8 @@ void RealTimeChart::drawCurves(QPainter &p)
     if (snap.size() < 2) return;
 
     // ── 预计算共享参数 ──
-    uint64_t latestTs = snap.last().timestamp;
+    //    右边界 = 墙钟时间（非数据时间戳）→ 无数据时画面持续滚动
+    uint64_t latestTs = QDateTime::currentMSecsSinceEpoch();
     double windowMs   = m_timeWindow * 1000.0;
     uint64_t minTs    = latestTs - static_cast<uint64_t>(windowMs) - static_cast<uint64_t>(m_xOffset);
 

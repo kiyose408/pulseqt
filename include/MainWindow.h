@@ -20,8 +20,10 @@
 #include "DataTableModel.h"
 #include "RealTimeChart.h"
 #include "DataBuffer.h"
-#include "TcpWorker.h"        // 替代 ChannelManager.h
-#include "ParseWorker.h"      // 替代 ProtocolDecoder.h + DatabaseManager.h
+#include "ChannelManager.h"
+#include "IChannel.h"
+#include "TcpChannel.h"
+#include "ParseWorker.h"      // 解码 + 缓冲 + DB
 #include "HistoryPlayer.h"
 
 
@@ -50,11 +52,12 @@ private:
     QLabel         *m_statusLabel = nullptr;
 
     bool m_collecting = false;   // 开始/停止采集标记
+    bool m_connected  = false;   // 通道已连接（≠ 线程存在）
 
-    QThread     *m_commThread  = nullptr;   // 通信线程
-    QThread     *m_parseThread = nullptr;   // 解析线程
-    TcpWorker   *m_tcpWorker   = nullptr;   // TCP 收发
-    ParseWorker *m_parseWorker = nullptr;   // 解码 + 缓冲 + DB
+    QThread        *m_commThread     = nullptr;   // 通信线程
+    QThread        *m_parseThread    = nullptr;   // 解析线程
+    ChannelManager *m_channelManager = nullptr;   // 通道管理（重连 + 转发）
+    ParseWorker    *m_parseWorker    = nullptr;   // 解码 + 缓冲 + DB
     HistoryPlayer *m_historyPlayer = nullptr;
 
 private slots:
@@ -62,6 +65,7 @@ private slots:
     void onAbout();
     void onConnect();
     void onDisconnect();
+    void teardown();              // 全部拆光（仅 closeEvent 调用）
     void onStart();
     void onStop();
 };

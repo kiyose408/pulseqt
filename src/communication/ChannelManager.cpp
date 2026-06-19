@@ -55,8 +55,11 @@ void ChannelManager::setChannel(IChannel *channel)
 
     m_channel = channel;
 
-    // 将新通道的四个信号连接到自己的槽（信号级联）
     if (m_channel) {
+        // 设为子对象：moveToThread 时自动跟随，无需手动管理线程归属
+        m_channel->setParent(this);
+
+        // 将新通道的四个信号连接到自己的槽（信号级联）
         connect(m_channel, &IChannel::connected,
                 this, &ChannelManager::onConnected);
         connect(m_channel, &IChannel::disconnected,
@@ -97,7 +100,13 @@ void ChannelManager::connectToDevice()
     m_channel->open();
 }
 
-void ChannelManager::disconnect()
+void ChannelManager::writeData(const QByteArray &data)
+{
+    if (m_channel && m_channel->isOpen())
+        m_channel->write(data);
+}
+
+void ChannelManager::disconnectDevice()
 {
     // 标记为用户主动操作——后续断线不启动重连
     m_userDisconnect = true;

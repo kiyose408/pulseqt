@@ -33,11 +33,17 @@ public:
     void setChannel(IChannel *channel);
     IChannel *channel() const;
 
+public slots:
     // 发起连接（设置 m_userDisconnect=false，允许断线后自动重连）
     void connectToDevice();
 
+    // 发送数据到通道（供上层如 ParseWorker 调用）
+    void writeData(const QByteArray &data);
+
     // 主动断开（设置 m_userDisconnect=true，不触发重连）
-    void disconnect();
+    void disconnectDevice();
+
+public:
 
     bool isConnected() const;       // 通道是否处于连接状态
     int reconnectAttempt() const;   // 当前重连尝试次数（调试用）
