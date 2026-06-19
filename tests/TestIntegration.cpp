@@ -20,7 +20,8 @@
 #include <QDir>
 #include <QFile>
 #include <QDebug>
-#include "TcpWorker.h"
+#include "ChannelManager.h"
+#include "TcpChannel.h"
 #include "ParseWorker.h"
 #include "DatabaseManager.h"
 
@@ -46,11 +47,10 @@ private:
 
     // ── 线程安全清理 ──────────────────────────────────
     // 在所属线程中清理 socket/timer，避免跨线程析构崩溃
-    void stopThreads(QThread &comm, QThread &parse, TcpWorker &tcp, ParseWorker &parser)
+    void stopThreads(QThread &comm, QThread &parse, ChannelManager &cm, ParseWorker &parser)
     {
         parser.setCollecting(false);
-        // BlockingQueuedConnection: 在 comm 线程内执行 close，主线程阻塞等完成
-        QMetaObject::invokeMethod(&tcp, "close", Qt::BlockingQueuedConnection);
+        QMetaObject::invokeMethod(&cm, "disconnectDevice", Qt::BlockingQueuedConnection);
         comm.quit();
         parse.quit();
         comm.wait(5000);
@@ -134,32 +134,32 @@ private slots:
         QVERIFY(startSimulator());
 
         QThread commThread, parseThread;
-        TcpWorker   tcp("127.0.0.1", 9999);
+        ChannelManager cm;
+        auto *ch = new TcpChannel("127.0.0.1", 9999);
+        cm.setChannel(ch);
         ParseWorker parser(m_dbPath);
         bool connected = false;
 
-        // Signal wiring
-        tcp.moveToThread(&commThread);
+        cm.moveToThread(&commThread);
         parser.moveToThread(&parseThread);
-        connect(&tcp, &TcpWorker::rawDataReceived,
+        connect(&cm, &ChannelManager::readyRead,
                 &parser, &ParseWorker::onRawDataReceived, Qt::QueuedConnection);
         connect(&parser, &ParseWorker::writeData,
-                &tcp, &TcpWorker::write, Qt::QueuedConnection);
-        connect(&tcp, &TcpWorker::connected, [&]() {
+                &cm, &ChannelManager::writeData, Qt::QueuedConnection);
+        connect(&cm, &ChannelManager::connected, [&]() {
             connected = true; parser.setCollecting(true);
         });
 
-        // Start threads BEFORE any QVERIFY
         commThread.start();
         parseThread.start();
-        QMetaObject::invokeMethod(&tcp, "open", Qt::QueuedConnection);
+        QMetaObject::invokeMethod(&cm, "connectToDevice", Qt::QueuedConnection);
 
         for (int i = 0; i < 60 && !connected; ++i) QTest::qWait(500);
         QVERIFY(connected);
 
-        QTest::qWait(10000);  // collect 10s
+        QTest::qWait(10000);
 
-        QMetaObject::invokeMethod(&tcp, "close", Qt::QueuedConnection);
+        QMetaObject::invokeMethod(&cm, "disconnectDevice", Qt::QueuedConnection);
         QTest::qWait(500);
         parser.dbManager()->flush();
 
@@ -177,7 +177,7 @@ private slots:
             }
         }
 
-        stopThreads(commThread, parseThread, tcp, parser);
+        stopThreads(commThread, parseThread, cm, parser);
         stopSimulator();
     }
 
@@ -197,17 +197,19 @@ private slots:
         {
             QVERIFY(startSimulator());
             QThread ct, pt;
-            TcpWorker   tcp("127.0.0.1", 9999);
+            ChannelManager cm;
+            auto *ch = new TcpChannel("127.0.0.1", 9999);
+            cm.setChannel(ch);
             ParseWorker parser(db2);
             bool ok = false;
-            tcp.moveToThread(&ct); parser.moveToThread(&pt);
-            connect(&tcp, &TcpWorker::rawDataReceived,
+            cm.moveToThread(&ct); parser.moveToThread(&pt);
+            connect(&cm, &ChannelManager::readyRead,
                     &parser, &ParseWorker::onRawDataReceived, Qt::QueuedConnection);
             connect(&parser, &ParseWorker::writeData,
-                    &tcp, &TcpWorker::write, Qt::QueuedConnection);
-            connect(&tcp, &TcpWorker::connected, [&]() { ok = true; parser.setCollecting(true); });
+                    &cm, &ChannelManager::writeData, Qt::QueuedConnection);
+            connect(&cm, &ChannelManager::connected, [&]() { ok = true; parser.setCollecting(true); });
             ct.start(); pt.start();
-            QMetaObject::invokeMethod(&tcp, "open", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(&cm, "connectToDevice", Qt::QueuedConnection);
             for (int i = 0; i < 60 && !ok; ++i) QTest::qWait(500);
             QVERIFY(ok);
             QTest::qWait(2000);
@@ -215,7 +217,7 @@ private slots:
             int n1 = parser.dbManager()->rowCount();
             qInfo() << "Round 1:" << n1 << "records";
             QVERIFY(n1 > 0);
-            stopThreads(ct, pt, tcp, parser);
+            stopThreads(ct, pt, cm, parser);
             stopSimulator();
         }
 
@@ -223,25 +225,27 @@ private slots:
         {
             QVERIFY(startSimulator());
             QThread ct, pt;
-            TcpWorker   tcp("127.0.0.1", 9999);
-            ParseWorker parser(db2);   // 同一个 DB 文件
+            ChannelManager cm;
+            auto *ch = new TcpChannel("127.0.0.1", 9999);
+            cm.setChannel(ch);
+            ParseWorker parser(db2);
             bool ok = false;
-            tcp.moveToThread(&ct); parser.moveToThread(&pt);
-            connect(&tcp, &TcpWorker::rawDataReceived,
+            cm.moveToThread(&ct); parser.moveToThread(&pt);
+            connect(&cm, &ChannelManager::readyRead,
                     &parser, &ParseWorker::onRawDataReceived, Qt::QueuedConnection);
             connect(&parser, &ParseWorker::writeData,
-                    &tcp, &TcpWorker::write, Qt::QueuedConnection);
-            connect(&tcp, &TcpWorker::connected, [&]() { ok = true; parser.setCollecting(true); });
+                    &cm, &ChannelManager::writeData, Qt::QueuedConnection);
+            connect(&cm, &ChannelManager::connected, [&]() { ok = true; parser.setCollecting(true); });
             ct.start(); pt.start();
-            QMetaObject::invokeMethod(&tcp, "open", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(&cm, "connectToDevice", Qt::QueuedConnection);
             for (int i = 0; i < 60 && !ok; ++i) QTest::qWait(500);
             QVERIFY(ok);
             QTest::qWait(2000);
             parser.dbManager()->flush();
             int n2 = parser.dbManager()->rowCount();
             qInfo() << "Round 2 (reconnect):" << n2 << "records";
-            QVERIFY(n2 > 0);  // 同一 DB 重新连接后继续写入
-            stopThreads(ct, pt, tcp, parser);
+            QVERIFY(n2 > 0);
+            stopThreads(ct, pt, cm, parser);
             stopSimulator();
         }
 
