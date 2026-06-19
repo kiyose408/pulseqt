@@ -285,3 +285,35 @@ yMin -= pad; yMax += pad;
 | 🔴 阻塞 | 3 | ④ ⑤ ⑭ |
 | 🟡 功能 | 10 | ① ② ③ ⑦ ⑨ ⑪ ⑬ ⑮ ⑯ ⑰ |
 | 🟢 工程 | 5 | ⑥ ⑧ ⑩ ⑫ ⑱ |
+
+---
+
+## Bug ⑲ · `setChannel` 替换旧通道时不销毁 → 每次重连泄漏 IChannel + QTcpSocket
+
+**发现位置**：架构审查 #1。
+
+**根因**：`setChannel()` 调用旧通道的 `close()`（清空内部 socket），但未销毁 IChannel 对象本身。重连时创建新通道替换旧通道，旧通道沦为孤儿对象。
+
+**修复**：`close()` 后加 `m_channel->deleteLater()`，在所属线程安全销毁。
+
+---
+
+## Bug ⑳ · 快速连/断时重连定时器事件残留
+
+**发现位置**：架构审查 #2。
+
+**根因**：`QTimer::stop()` 不删除已在事件队列中的 timeout 事件。`disconnectDevice()` → `stopReconnect()` → `stop()` 后，已入队的 timeout 仍可能触发旧通道上的 `open()`。
+
+**状态**：低概率（需定时器恰好在连/断之间到期），暂不修复。后续需将 `stopReconnect()` 改为同时设置 `m_reconnectTimer->blockSignals(true)` 或在 `onReconnectTimer` 中加 `m_userDisconnect` 守卫。
+
+---
+
+## 累计统计
+
+| 级别 | 数量 | 编号 |
+|:--:|:--:|------|
+| 🔴 阻塞 | 3 | ④ ⑤ ⑭ |
+| 🟡 功能 | 10 | ① ② ③ ⑦ ⑨ ⑪ ⑬ ⑮ ⑯ ⑰ |
+| 🟡 泄漏 | 1 | ⑲ |
+| 🟢 工程 | 5 | ⑥ ⑧ ⑩ ⑫ ⑱ |
+| 🔵 已知 | 1 | ⑳ |

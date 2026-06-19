@@ -47,10 +47,11 @@ ChannelManager::~ChannelManager()
 
 void ChannelManager::setChannel(IChannel *channel)
 {
-    // 先断开旧通道的所有信号连接
+    // 先断开旧通道的所有信号连接 + 安全销毁
     if (m_channel) {
         m_channel->disconnect(this);
         m_channel->close();
+        m_channel->deleteLater();   // 在所属线程安全销毁，防止泄漏
     }
 
     m_channel = channel;
