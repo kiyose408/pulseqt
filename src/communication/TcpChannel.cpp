@@ -99,9 +99,13 @@ bool TcpChannel::isOpen() const
 
 qint64 TcpChannel::write(const QByteArray &data)
 {
-    if (!m_socket || !m_socket->isOpen())
+    if (!m_socket || !m_socket->isOpen()) {
+        emit errorOccurred("TCP socket not open");
         return -1;
-    return m_socket->write(data);
+    }
+    qint64 n = m_socket->write(data);
+    if (n < 0) emit errorOccurred(m_socket->errorString());
+    return n;
 }
 
 // ── 自注册到全局通道注册表 ──────────────────────────

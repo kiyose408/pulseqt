@@ -31,19 +31,14 @@ DataBuffer::DataBuffer(int maxSize, QObject *parent)
 
 void DataBuffer::push(const DataPoint &point)
 {
-    QMutexLocker locker(&m_mutex);   // 构造时自动 lock，析构时自动 unlock
+    QMutexLocker locker(&m_mutex);
 
-    // 写入环形数组
     m_ring[m_head] = point;
-
-    // 头指针前进，到头则绕回 0
     m_head = (m_head + 1) % m_maxSize;
-
-    // 计数递增，封顶 m_maxSize（满了就不再增长）
     if (m_count < m_maxSize)
         m_count++;
 
-    emit bufferUpdated(1);           // 通知观察者
+    emit bufferUpdated(1);
 }
 
 //==============================================================================

@@ -75,34 +75,41 @@ void MainWindow::setupToolBar()
 
 void MainWindow::setupCentralArea()
 {
+    // ── 实时曲线 ──────────────────────────────────
     m_chart = new RealTimeChart(this);
+
+    // ── 数据表格 ──────────────────────────────────
     m_tableModel = new DataTableModel(this);
     m_tableView  = new QTableView(this);
     m_tableView->setModel(m_tableModel);
     m_tableView->setAlternatingRowColors(true);
     m_tableView->horizontalHeader()->setStretchLastSection(true);
     m_tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-
     connect(m_tableModel, &DataTableModel::dataRefreshed, this, [this]() {
         m_tableView->scrollToBottom();
     });
 
-    // 上：曲线 + 表格
-    QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
-    splitter->addWidget(m_chart);
-    splitter->addWidget(m_tableView);
-    splitter->setStretchFactor(0, 7);
-    splitter->setStretchFactor(1, 3);
+    // ── 上半区：实时曲线 + 表格 ─────────────────────
+    QSplitter *topSplitter = new QSplitter(Qt::Horizontal, this);
+    topSplitter->addWidget(m_chart);
+    topSplitter->addWidget(m_tableView);
+    topSplitter->setStretchFactor(0, 7);
+    topSplitter->setStretchFactor(1, 3);
 
-    // 下：历史回放
+    // ── 回放曲线（独立 RealTimeChart，绑定独立 DataBuffer） ──
+    m_playbackChart = new RealTimeChart(this);
+    m_playbackChart->setMinimumHeight(150);
+
+    // ── 历史回放滑块 ──────────────────────────────
     m_historyPlayer = new HistoryPlayer(this);
 
-    // 整体垂直布局
+    // ── 整体垂直布局 ──────────────────────────────
     QWidget *central = new QWidget(this);
     QVBoxLayout *vLayout = new QVBoxLayout(central);
     vLayout->setContentsMargins(0, 0, 0, 0);
-    vLayout->addWidget(splitter, 1);         // 占满剩余空间
-    vLayout->addWidget(m_historyPlayer);     // 底部固定高度
+    vLayout->addWidget(topSplitter, 3);          // 上半区占 3 份
+    vLayout->addWidget(m_playbackChart, 1);       // 回放曲线占 1 份
+    vLayout->addWidget(m_historyPlayer);          // 底部滑块
 
     setCentralWidget(central);
 }
@@ -143,31 +150,28 @@ void MainWindow::onAbout()
 
 void MainWindow::onConnect()
 {
-    if (m_connected) return;   // 已连接
+    // 已连接 → 先断（用户可能想切通道/改配置）
+    if (m_connected)
+        onDisconnect();
 
-    // ── 首次连接：弹对话框 → 注册表创建通道 ──────────
+    // ── 弹对话框（每次连接都弹，可换通道） ────────────
+    ConnectionDialog dlg(this);
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    QString    channelId = dlg.selectedChannelId();
+    QVariantMap cfg      = dlg.config();
+
+    // ── 首次连接：创建线程 + 管理器 + 解析器 ──────────
     if (!m_parseWorker) {
-        ConnectionDialog dlg(this);
-        if (dlg.exec() != QDialog::Accepted)
-            return;
-
-        auto *channel = ChannelRegistry::create(
-            dlg.selectedChannelId(), dlg.config());
-        if (!channel) {
-            QMessageBox::warning(this, "错误", "无法创建通道");
-            return;
-        }
-
         m_commThread     = new QThread(this);
         m_parseThread    = new QThread(this);
         m_channelManager = new ChannelManager();
-        m_channelManager->setChannel(channel);
         m_parseWorker    = new ParseWorker();
 
         m_channelManager->moveToThread(m_commThread);
         m_parseWorker->moveToThread(m_parseThread);
 
-        // 信号接线：ChannelManager ↔ ParseWorker
         connect(m_channelManager, &ChannelManager::readyRead,
                 m_parseWorker, &ParseWorker::onRawDataReceived,
                 Qt::QueuedConnection);
@@ -176,8 +180,6 @@ void MainWindow::onConnect()
                 Qt::QueuedConnection);
         connect(m_parseWorker, &ParseWorker::dataPointReady,
                 this, [this]() {}, Qt::QueuedConnection);
-
-        // 状态更新
         connect(m_channelManager, &ChannelManager::connected,
                 this, [this]() { m_statusLabel->setText("已连接"); },
                 Qt::QueuedConnection);
@@ -187,19 +189,28 @@ void MainWindow::onConnect()
                     else m_statusLabel->setText("已断开");
                 }, Qt::QueuedConnection);
 
-        // 注入数据源
         setDataBuffer(m_parseWorker->buffer());
         m_historyPlayer->setDbPath("data.db");
         m_historyPlayer->setDataBuffer(m_parseWorker->buffer());
+        // 回放图表永久绑定独立 buffer（不切换，不和实时抢）
+        m_playbackChart->setDataBuffer(m_historyPlayer->playbackBuffer());
+        m_historyPlayer->setChart(m_playbackChart);
+        m_historyPlayer->setTimeWindow(m_chart->timeWindow());
         m_historyPlayer->loadTimeRange();
 
         m_commThread->start();
         m_parseThread->start();
     }
 
-    // ── 发起连接（首次 / 重连） ──────────────────────
-    QMetaObject::invokeMethod(m_channelManager, "connectToDevice",
-                              Qt::QueuedConnection);
+    // ── 在通信线程内创建通道 → 设置 → 连接 ────────────
+    //    通道在通信线程创建，避免 setParent 跨线程警告
+    QMetaObject::invokeMethod(m_channelManager, [this, channelId, cfg]() {
+        auto *ch = ChannelRegistry::create(channelId, cfg);
+        if (!ch) return;
+        m_channelManager->setChannel(ch);
+        m_channelManager->connectToDevice();
+    }, Qt::QueuedConnection);
+
     m_connected = true;
     m_statusLabel->setText("连接中...");
 }

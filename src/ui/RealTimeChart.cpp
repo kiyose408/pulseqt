@@ -13,13 +13,13 @@ const QColor RealTimeChart::CH_COLORS[8] = {
     QColor(0xE6, 0x4C, 0x4C),  // 红
 };
 // 时间戳（毫秒）→ 像素 X（latestTs 和 windowMs 由调用方传入，避免重复 snapshot）
-double RealTimeChart::timeToPixelX(uint64_t timestamp, qint64 latestTs, double windowMs) const
+double RealTimeChart::timeToPixelX(uint64_t timestamp, qint64 latestTs, double windowMs, double offset) const
 {
     if (windowMs <= 0) return 50.0;
 
     qint64 delta = latestTs - static_cast<qint64>(timestamp);
     if (delta < 0) delta = 0;   // 时钟回拨：未来数据置右边缘
-    double ratio = (static_cast<double>(delta) - m_xOffset) / windowMs;
+    double ratio = (static_cast<double>(delta) - offset) / windowMs;
     return 50.0 + (1.0 - ratio) * (static_cast<double>(width()) - 70.0);
 }
 
@@ -70,11 +70,14 @@ void RealTimeChart::drawBackground(QPainter &p)
     smallFont.setPointSize(8);
     p.setFont(smallFont);
 
-    // 这里固定 0~1024 范围（后续可自适应）
+    // Y 轴刻度（匹配自适应范围）
+    double yRange = m_curYMax - m_curYMin;
+    if (yRange <= 0) yRange = 1024;
     for (int i = 0; i <= 4; ++i) {
-        int val = 1024 * (4 - i) / 4;   // 1024 → 768 → 512 → 256 → 0
-        double y = top + (bottom - top) * i / 4.0;
-        p.drawText(2, static_cast<int>(y) + 4, QString::number(val));
+        double val = m_curYMin + yRange * (4 - i) / 4.0;
+        double y   = top + (bottom - top) * i / 4.0;
+        p.drawText(2, static_cast<int>(y) + 4,
+                   QString::number(val, 'f', (yRange < 10) ? 1 : 0));
     }
 }
 RealTimeChart::RealTimeChart(QWidget *parent):QWidget(parent)
@@ -101,6 +104,11 @@ void RealTimeChart::setDataBuffer(DataBuffer *buffer)
     m_buffer = buffer;
 }
 
+void RealTimeChart::setCurrentTime(qint64 t)
+{
+    m_currentTime = t;
+}
+
 void RealTimeChart::setTimeWindow(double seconds)
 {
     m_timeWindow = seconds;
@@ -125,11 +133,14 @@ void RealTimeChart::paintEvent(QPaintEvent *)
 
     QPainter p(&m_offscreen);
 
-    // 背景 + 坐标轴（抗锯齿开启，就几条线不费性能）
+    // ① 先算 Y 轴范围（背景和曲线共用，避免不同步）
+    computeYRange();
+
+    // ② 背景 + 坐标轴
     p.setRenderHint(QPainter::Antialiasing, true);
     drawBackground(p);
 
-    // 曲线（关闭抗锯齿 —— 软件渲染下快 10-50 倍）
+    // ③ 曲线
     p.setRenderHint(QPainter::Antialiasing, false);
     drawCurves(p);
 
@@ -197,6 +208,49 @@ void RealTimeChart::onRefresh()
     update();   // 异步排队绘制，不阻塞事件循环
 }
 
+void RealTimeChart::computeYRange()
+{
+    if (!m_buffer) return;
+
+    auto snap = m_buffer->snapshot();
+    if (snap.size() < 2) return;
+
+    // ── 共享计算：右边界 + 窗口 + 偏移 ──────────────
+    qint64 wallNow = QDateTime::currentMSecsSinceEpoch();
+    if (m_currentTime > 0) {
+        m_latestTs = m_currentTime;
+        m_usedOffset = 0.0;
+    } else {
+        qint64 dataLatest = snap.last().timestamp;
+        m_latestTs = (wallNow - static_cast<qint64>(dataLatest) < 10000)
+                      ? wallNow : dataLatest;
+        m_usedOffset = m_xOffset;
+    }
+    m_windowMs = m_timeWindow * 1000.0;
+    m_minTs    = m_latestTs - static_cast<qint64>(m_windowMs + m_usedOffset);
+    if (m_minTs < 0) m_minTs = 0;
+
+    // ── Y 轴范围 ────────────────────────────────────
+    int channels = snap[0].channels.size();
+    double yMin = 0, yMax = 1024;
+    bool first = true;
+    auto it = std::lower_bound(snap.begin(), snap.end(), m_minTs,
+        [](const DataPoint &dp, uint64_t ts) { return dp.timestamp < ts; });
+    for (; it != snap.end(); ++it) {
+        for (int ch = 0; ch < channels && ch < 8; ++ch) {
+            double v = it->channels[ch];
+            if (first) { yMin = yMax = v; first = false; }
+            else { if (v < yMin) yMin = v; if (v > yMax) yMax = v; }
+        }
+    }
+    if (yMax > yMin) {
+        double pad = (yMax - yMin) * 0.1;
+        yMin -= pad; yMax += pad;
+    }
+    m_curYMin = yMin;
+    m_curYMax = yMax;
+}
+
 void RealTimeChart::drawCurves(QPainter &p)
 {
     if (!m_buffer) return;
@@ -204,46 +258,24 @@ void RealTimeChart::drawCurves(QPainter &p)
     auto snap = m_buffer->snapshot();
     if (snap.size() < 2) return;
 
-    // ── 预计算共享参数 ──
-    //    右边界 = 墙钟时间（非数据时间戳）→ 无数据时画面持续滚动
-    qint64 latestTs = QDateTime::currentMSecsSinceEpoch();
-    double windowMs = m_timeWindow * 1000.0;
-    qint64 minTs    = latestTs - static_cast<qint64>(windowMs + m_xOffset);
-    if (minTs < 0) minTs = 0;
-
     int channels = snap[0].channels.size();
 
-    // ── Y 轴范围：从可见数据中自适应计算 ──────────────
-    double yMin = 0, yMax = 1024;   // 兜底（无数据时）
-    {
-        bool first = true;
-        auto it = std::lower_bound(snap.begin(), snap.end(), minTs,
-            [](const DataPoint &dp, uint64_t ts) { return dp.timestamp < ts; });
-        for (; it != snap.end(); ++it) {
-            for (int ch = 0; ch < channels && ch < 8; ++ch) {
-                double v = it->channels[ch];
-                if (first) { yMin = yMax = v; first = false; }
-                else { if (v < yMin) yMin = v; if (v > yMax) yMax = v; }
-            }
-        }
-        if (yMax > yMin) {
-            double pad = (yMax - yMin) * 0.1;
-            yMin -= pad;
-            yMax += pad;
-        }
-    }
+    // ── Y 轴范围（已由 computeYRange 预先计算）───────
+    double yMin = m_curYMin, yMax = m_curYMax;
+
+
 
     for (int ch = 0; ch < channels && ch < 8; ++ch) {
         QPolygonF polyline;
         double lastPx = -9999;
         double decimateThreshold = 1.5;
 
-        auto it = std::lower_bound(snap.begin(), snap.end(), minTs,
+        auto it = std::lower_bound(snap.begin(), snap.end(), m_minTs,
             [](const DataPoint &dp, uint64_t ts) { return dp.timestamp < ts; });
         for (; it != snap.end(); ++it) {
             const auto &dp = *it;
 
-            double px = timeToPixelX(dp.timestamp, latestTs, windowMs);
+            double px = timeToPixelX(dp.timestamp, m_latestTs, m_windowMs, m_usedOffset);
             double py = valueToPixelY(dp.channels[ch], yMin, yMax);
 
             if (!polyline.isEmpty() && qAbs(px - lastPx) < decimateThreshold) continue;

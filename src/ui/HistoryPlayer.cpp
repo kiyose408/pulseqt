@@ -1,4 +1,5 @@
 #include "HistoryPlayer.h"
+#include "RealTimeChart.h"
 #include <QHBoxLayout>
 #include <QDateTime>
 
@@ -26,6 +27,12 @@ HistoryPlayer::HistoryPlayer(QWidget *parent)
     m_playTimer->setInterval(50);
     connect(m_playTimer, &QTimer::timeout, this, &HistoryPlayer::onPlayTick);
 
+    // 每 3 秒刷新 DB 最新时间戳（滑块范围自动扩展）
+    m_refreshTimer = new QTimer(this);
+    m_refreshTimer->setInterval(3000);
+    connect(m_refreshTimer, &QTimer::timeout, this, &HistoryPlayer::refreshLatest);
+    m_refreshTimer->start();
+
     layout->addWidget(m_playBtn);
     layout->addWidget(m_speedCombo);
     layout->addWidget(m_slider, 1);
@@ -50,8 +57,20 @@ void HistoryPlayer::setDataBuffer(DataBuffer *buffer)
     m_buffer = buffer;
 }
 
+void HistoryPlayer::setChart(RealTimeChart *chart)
+{
+    m_chart = chart;
+}
+
+void HistoryPlayer::setTimeWindow(double seconds)
+{
+    m_timeWindow = seconds;
+}
+
 void HistoryPlayer::loadTimeRange()
 {
+    uint64_t oldEnd = m_timeEnd;
+
     m_timeBegin = m_db.minTimestamp();
     m_timeEnd   = m_db.maxTimestamp();
 
@@ -65,28 +84,50 @@ void HistoryPlayer::loadTimeRange()
     m_currentTime = m_timeEnd;
     updateTimeLabel();
     setEnabled(true);
+
+    // 范围扩大时保持滑块在末尾
+    Q_UNUSED(oldEnd);
+}
+
+void HistoryPlayer::refreshLatest()
+{
+    uint64_t newEnd = m_db.maxTimestamp();
+    if (newEnd == 0) return;                    // DB 仍为空
+
+    // 滑块尚未启用（DB 从空 → 有数据）→ 完整初始化
+    if (!isEnabled()) {
+        loadTimeRange();
+        return;
+    }
+
+    if (newEnd <= m_timeEnd) return;            // 无新数据
+    m_timeEnd = newEnd;
 }
 
 void HistoryPlayer::queryAndShow(uint64_t centerTime)
 {
-    if (!m_buffer) return;
-
-    uint64_t tBegin = (centerTime > 15000) ? (centerTime - 15000) : 0;
-    uint64_t tEnd   = centerTime + 15000;
+    // 查询范围 = 图表当前时间窗口（跟随缩放; 最大 120s）
+    //    从图表实时读数，不依赖 setTimeWindow 一次性设置
+    double   winSec    = m_chart ? m_chart->timeWindow() : m_timeWindow;
+    uint64_t querySpan = static_cast<uint64_t>(winSec * 1200.0);
+    uint64_t tBegin    = (centerTime > querySpan) ? (centerTime - querySpan) : 0;
+    uint64_t tEnd      = centerTime;  // 滑块 = 最右侧，不查未来
 
     auto results = m_db.query(tBegin, tEnd);
-    m_buffer->clear();
+    m_playbackBuffer.clear();
     for (auto &dp : results)
-        m_buffer->push(dp);
+        m_playbackBuffer.push(dp);
 }
 
 void HistoryPlayer::onSliderMoved(int value)
 {
-    if (!m_buffer) return;
+    if (!isEnabled()) return;   // DB 无数据 → 滑块未启用
+    refreshLatest();    // 拖动时刷新最新时间范围
 
     double ratio = value / 10000.0;
     m_currentTime = m_timeBegin + static_cast<uint64_t>((m_timeEnd - m_timeBegin) * ratio);
     updateTimeLabel();
+    if (m_chart) m_chart->setCurrentTime(static_cast<qint64>(m_currentTime));
     queryAndShow(m_currentTime);
 }
 
@@ -100,6 +141,7 @@ void HistoryPlayer::onPlayPause()
     } else {
         m_playBtn->setText("▶");
         m_playTimer->stop();
+        if (m_chart) m_chart->setCurrentTime(0);
     }
 }
 
@@ -124,5 +166,6 @@ void HistoryPlayer::onPlayTick()
     m_slider->blockSignals(false);
 
     updateTimeLabel();
+    if (m_chart) m_chart->setCurrentTime(static_cast<qint64>(m_currentTime));
     queryAndShow(m_currentTime);
 }

@@ -17,6 +17,7 @@ public:
 
     void setDataBuffer(DataBuffer *buffer);
     void setTimeWindow(double seconds);     //X轴时间跨度（默认30s）
+    void setCurrentTime(qint64 t);          //回放时设置当前时间（0=实时模式）
     double timeWindow() const;
 
 protected:
@@ -31,8 +32,9 @@ private slots:
     void onRefresh();           //定时器刷新
 
 private:
-    double timeToPixelX(uint64_t timestamp, qint64 latestTs, double windowMs) const;
+    double timeToPixelX(uint64_t timestamp, qint64 latestTs, double windowMs, double offset = 0.0) const;
     double valueToPixelY(double value, double yMin, double yMax) const;
+    void computeYRange();                       //预先计算时间/范围（背景+曲线共用）
     void drawBackground(QPainter &p);           //网格＋坐标轴
     void drawCurves (QPainter &p);              //曲线
     void drawLegend(QPainter &p, int channels);  //图例
@@ -42,7 +44,14 @@ private:
     QPixmap m_offscreen;
     double m_timeWindow = 30.0;         // x轴跨度（秒）
     double m_xOffset = 0.0 ;            //拖拽偏移（毫秒）
+    double m_curYMin = 0.0;             // 当前 Y 轴下限
+    double m_curYMax = 1024.0;          // 当前 Y 轴上限
+    qint64 m_latestTs = 0;              // 预计算：右边界时间戳
+    double m_usedOffset = 0.0;          // 预计算：有效偏移
+    double m_windowMs = 30000.0;        // 预计算：窗口(ms)
+    qint64 m_minTs = 0;                 // 预计算：可视左边界
     bool m_dragging =false;
+    qint64 m_currentTime = 0;           //回放参考时间（>0=回放模式）
     QPoint m_lastMousePos;
 
     static const QColor CH_COLORS[8];
