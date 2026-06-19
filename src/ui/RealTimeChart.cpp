@@ -13,11 +13,13 @@ const QColor RealTimeChart::CH_COLORS[8] = {
     QColor(0xE6, 0x4C, 0x4C),  // 红
 };
 // 时间戳（毫秒）→ 像素 X（latestTs 和 windowMs 由调用方传入，避免重复 snapshot）
-double RealTimeChart::timeToPixelX(uint64_t timestamp, uint64_t latestTs, double windowMs) const
+double RealTimeChart::timeToPixelX(uint64_t timestamp, qint64 latestTs, double windowMs) const
 {
     if (windowMs <= 0) return 50.0;
 
-    double ratio = (static_cast<double>(latestTs - timestamp) - m_xOffset) / windowMs;
+    qint64 delta = latestTs - static_cast<qint64>(timestamp);
+    if (delta < 0) delta = 0;   // 时钟回拨：未来数据置右边缘
+    double ratio = (static_cast<double>(delta) - m_xOffset) / windowMs;
     return 50.0 + (1.0 - ratio) * (static_cast<double>(width()) - 70.0);
 }
 
@@ -204,9 +206,10 @@ void RealTimeChart::drawCurves(QPainter &p)
 
     // ── 预计算共享参数 ──
     //    右边界 = 墙钟时间（非数据时间戳）→ 无数据时画面持续滚动
-    uint64_t latestTs = QDateTime::currentMSecsSinceEpoch();
-    double windowMs   = m_timeWindow * 1000.0;
-    uint64_t minTs    = latestTs - static_cast<uint64_t>(windowMs) - static_cast<uint64_t>(m_xOffset);
+    qint64 latestTs = QDateTime::currentMSecsSinceEpoch();
+    double windowMs = m_timeWindow * 1000.0;
+    qint64 minTs    = latestTs - static_cast<qint64>(windowMs + m_xOffset);
+    if (minTs < 0) minTs = 0;
 
     // ── Y 轴范围（后续可自适应）─────────────────────
     double yMin = 0, yMax = 1024;

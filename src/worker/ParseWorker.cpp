@@ -1,8 +1,7 @@
 #include "ParseWorker.h"
+#include "Frame.h"
 #include <QDateTime>
 #include <QDebug>
-
-extern uint16_t crc16_ccitt(const uint8_t *data, size_t len);
 
 ParseWorker::ParseWorker(const QString &dbPath, QObject *parent): QObject(parent)
 {
