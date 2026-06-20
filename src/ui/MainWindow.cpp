@@ -274,28 +274,22 @@ void MainWindow::teardown()
     if (m_channelManager) {
         QMetaObject::invokeMethod(m_channelManager, "disconnectDevice",
                                   Qt::BlockingQueuedConnection);
-        QMetaObject::invokeMethod(m_channelManager, "deleteLater",
-                                  Qt::BlockingQueuedConnection);
-        m_channelManager = nullptr;
-    }
-    if (m_parseWorker) {
-        QMetaObject::invokeMethod(m_parseWorker, "deleteLater",
-                                  Qt::BlockingQueuedConnection);
-        m_parseWorker = nullptr;
     }
 
     if (m_commThread) {
         m_commThread->quit();
         m_commThread->wait();
-        delete m_commThread;
-        m_commThread = nullptr;
     }
     if (m_parseThread) {
         m_parseThread->quit();
         m_parseThread->wait();
-        delete m_parseThread;
-        m_parseThread = nullptr;
     }
+
+    // 线程已停，安全直接删除（通道已关闭）
+    delete m_channelManager; m_channelManager = nullptr;
+    delete m_parseWorker;    m_parseWorker    = nullptr;
+    delete m_commThread;     m_commThread     = nullptr;
+    delete m_parseThread;    m_parseThread    = nullptr;
 }
 
 void MainWindow::onStart()

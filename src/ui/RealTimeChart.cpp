@@ -1,16 +1,26 @@
 #include "RealTimeChart.h"
 #include <algorithm>
 #include <QDateTime>
+#include <QElapsedTimer>
+#include <QFile>
 
-const QColor RealTimeChart::CH_COLORS[8] = {
-    QColor(0xE6, 0x69, 0x4C),  // 橙
-    QColor(0x4C, 0xB4, 0xE6),  // 蓝
-    QColor(0x4C, 0xE6, 0x7A),  // 绿
-    QColor(0xE6, 0x4C, 0xB4),  // 粉
-    QColor(0xE6, 0xD8, 0x4C),  // 黄
-    QColor(0x8E, 0x4C, 0xE6),  // 紫
-    QColor(0x4C, 0xE6, 0xD8),  // 青
-    QColor(0xE6, 0x4C, 0x4C),  // 红
+const QColor RealTimeChart::CH_COLORS[16] = {
+    QColor(0xE6, 0x69, 0x4C),  // 0 橙
+    QColor(0x4C, 0xB4, 0xE6),  // 1 蓝
+    QColor(0x4C, 0xE6, 0x7A),  // 2 绿
+    QColor(0xE6, 0x4C, 0xB4),  // 3 粉
+    QColor(0xE6, 0xD8, 0x4C),  // 4 黄
+    QColor(0x8E, 0x4C, 0xE6),  // 5 紫
+    QColor(0x4C, 0xE6, 0xD8),  // 6 青
+    QColor(0xE6, 0x4C, 0x4C),  // 7 红
+    QColor(0xB4, 0xE6, 0x4C),  // 8 黄绿
+    QColor(0x4C, 0x8E, 0xE6),  // 9 深蓝
+    QColor(0xE6, 0x8E, 0x4C),  // 10 深橙
+    QColor(0x4C, 0xE6, 0xB4),  // 11 薄荷
+    QColor(0xB4, 0x4C, 0xE6),  // 12 淡紫
+    QColor(0xE6, 0x4C, 0x8E),  // 13 玫红
+    QColor(0x8E, 0xE6, 0x4C),  // 14 草绿
+    QColor(0x4C, 0xE6, 0xE6),  // 15 天蓝
 };
 // 时间戳（毫秒）→ 像素 X（latestTs 和 windowMs 由调用方传入，避免重复 snapshot）
 double RealTimeChart::timeToPixelX(uint64_t timestamp, qint64 latestTs, double windowMs, double offset) const
@@ -141,25 +151,25 @@ void RealTimeChart::paintEvent(QPaintEvent *)
 {
     if (width() < 60 || height() < 40) return;
 
-    // ── 离屏画布 ──
+    QElapsedTimer t; t.start();  // ── 性能计时 ──
+
     if (m_offscreen.size() != size())
         m_offscreen = QPixmap(size());
     m_offscreen.fill(m_darkMode ? QColor(0x1E,0x1E,0x1E) : Qt::white);
 
     QPainter p(&m_offscreen);
 
-    // ① 先算 Y 轴范围（背景和曲线共用，避免不同步）
     computeYRange();
+    qint64 tY = t.elapsed();
 
-    // ② 背景 + 坐标轴
     p.setRenderHint(QPainter::Antialiasing, true);
     drawBackground(p);
+    qint64 tBg = t.elapsed();
 
-    // ③ 曲线
     p.setRenderHint(QPainter::Antialiasing, false);
     drawCurves(p);
+    qint64 tCurve = t.elapsed();
 
-    // 图例
     {
         auto snap = m_buffer ? m_buffer->snapshot() : QVector<DataPoint>();
         int chCount = snap.isEmpty() ? 3 : snap[0].channels.size();
@@ -168,9 +178,19 @@ void RealTimeChart::paintEvent(QPaintEvent *)
 
     p.end();
 
-    // 贴到屏幕
     QPainter screenPainter(this);
     screenPainter.drawPixmap(0, 0, m_offscreen);
+    qint64 tTotal = t.elapsed();
+
+    // 每 100 帧打印一次分段耗时 (ms) → 同时写文件
+    static int fc = 0;
+    if (++fc % 100 == 0) {
+        QString line = QString("paint Y:%1ms Bg:%2ms Curve:%3ms total:%4ms\n")
+            .arg(tY).arg(tBg-tY).arg(tCurve-tBg).arg(tTotal);
+        qDebug() << "⏱" << line;
+        QFile f("perf_log.txt");
+        if (f.open(QIODevice::Append)) { f.write(line.toUtf8()); f.close(); }
+    }
 }
 
 void RealTimeChart::wheelEvent(QWheelEvent *event)
@@ -252,7 +272,7 @@ void RealTimeChart::computeYRange()
     auto it = std::lower_bound(snap.begin(), snap.end(), m_minTs,
         [](const DataPoint &dp, uint64_t ts) { return dp.timestamp < ts; });
     for (; it != snap.end(); ++it) {
-        for (int ch = 0; ch < channels && ch < 8; ++ch) {
+        for (int ch = 0; ch < channels && ch < 16; ++ch) {
             double v = it->channels[ch];
             if (first) { yMin = yMax = v; first = false; }
             else { if (v < yMin) yMin = v; if (v > yMax) yMax = v; }
@@ -280,7 +300,7 @@ void RealTimeChart::drawCurves(QPainter &p)
 
 
 
-    for (int ch = 0; ch < channels && ch < 8; ++ch) {
+    for (int ch = 0; ch < channels && ch < 16; ++ch) {
         QPolygonF polyline;
         double lastPx = -9999;
         double decimateThreshold = 1.5;
@@ -305,7 +325,7 @@ void RealTimeChart::drawCurves(QPainter &p)
 
 void RealTimeChart::drawLegend(QPainter &p, int channels)
 {
-    if (channels > 8) channels = 8;
+    if (channels > 16) channels = 16;
 
     int x = width() -120;   //右上角起始位置
     int y =25;
