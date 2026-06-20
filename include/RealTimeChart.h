@@ -56,7 +56,7 @@ private:
     qint64 m_currentTime = 0;           //回放参考时间（>0=回放模式）
     QPoint m_lastMousePos;
 
-    static const QColor CH_COLORS[8];
+    static const QColor CH_COLORS[16];
 
 };
 

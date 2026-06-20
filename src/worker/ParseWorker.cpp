@@ -33,12 +33,11 @@ ParseWorker::ParseWorker(const QString &dbPath, QObject *parent): QObject(parent
 
                 DataPoint dp;
                 dp.timestamp = QDateTime::currentMSecsSinceEpoch();
+                int chCount = frame.payload.size() / 2;  // 每通道 uint16 = 2 字节
+                dp.channels.reserve(chCount);
                 auto d = reinterpret_cast<const uint8_t*>(frame.payload.constData());
-                dp.channels = {
-                    double(d[0] | (d[1] << 8)),
-                    double(d[2] | (d[3] << 8)),
-                    double(d[4] | (d[5] << 8))
-                };
+                for (int i = 0; i < chCount; ++i)
+                    dp.channels.append(double(d[i*2] | (d[i*2+1] << 8)));
 
                 m_buffer.push(dp);
                 m_dbManager.insert(dp);
