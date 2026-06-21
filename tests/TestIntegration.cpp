@@ -2,7 +2,7 @@
 // TestIntegration — 全链路集成测试（T025）
 //
 // 不启动 GUI，程序化走通完整数据管道：
-//   Python 模拟器 → TCP → TcpWorker → ParseWorker → DataBuffer → SQLite
+//   Python 模拟器 → TCP → TcpChannel → ParseWorker → DataBuffer → SQLite
 //
 // 测试：
 //   ① 启动模拟器 → 连接 → 采集 10s → DB 有 ≥900 条记录

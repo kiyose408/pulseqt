@@ -86,7 +86,6 @@ add_library(PulseQtTestLib STATIC
     src/communication/ChannelManager.cpp
     src/communication/TcpChannel.cpp
     src/communication/ChannelRegistry.cpp
-    src/worker/TcpWorker.cpp  # LEGACY — 仅 TestIntegration 测试引用，生产代码已迁移至 TcpChannel + IChannel 体系
     src/worker/ParseWorker.cpp
     include/ProtocolDecoder.h
     include/Frame.h
@@ -97,7 +96,6 @@ add_library(PulseQtTestLib STATIC
     include/ChannelManager.h
     include/ChannelRegistry.h
     include/TcpChannel.h
-    include/TcpWorker.h
     include/ParseWorker.h
 )
 target_include_directories(PulseQtTestLib PRIVATE include)
