@@ -300,10 +300,10 @@ MIT License — 详见 [dist/license.txt](dist/license.txt)
 | T023 | DataBuffer 单元测试 | 环形缓冲绕回 + TSan 多线程压测 |
 | T024 | DatabaseManager + Frame 单元测试 | 批量写入/序列化往返/查询边界 + CRC 标准向量 |
 | T025 | 全链路集成测试 | Python 模拟器驱动 → 采集 → DB → CSV → 回放 → 断线重连 |
-| T026 | CI/CD Pipeline | GitHub Actions 三平台 matrix (Ubuntu/Win/macOS) |
+| T026 | CI/CD Pipeline | GitHub Actions 双平台 matrix (Ubuntu/Win) |
 
 **里程碑 ⑤**：`ctest` 全部 pass，状态机覆盖率 100%  
-**里程碑 ⑥**：三平台 CI 全绿
+**里程碑 ⑥**：双平台 CI 全绿
 
 ### 阶段 8：协议层深度
 
