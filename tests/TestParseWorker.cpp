@@ -38,6 +38,22 @@ static QByteArray makeDataFrame(uint16_t ch0, uint16_t ch1, uint16_t ch2)
     return makeFrame(Frame::TYPE_DATA, payload);
 }
 
+// 构建握手请求帧：channelCount(1B) + types(NB)
+static QByteArray makeHandshakeFrame(int chCount, const QVector<uint8_t> &types)
+{
+    QByteArray payload;
+    payload.append(static_cast<char>(chCount));
+    for (uint8_t t : types)
+        payload.append(static_cast<char>(t));
+    return makeFrame(Frame::TYPE_HANDSHAKE_REQ, payload);
+}
+
+// 构建指定类型的数据帧（用于握手后测试不同类型）
+static QByteArray makeTypedDataFrame(const QByteArray &payload)
+{
+    return makeFrame(Frame::TYPE_DATA, payload);
+}
+
 class TestParseWorker : public QObject
 {
     Q_OBJECT
@@ -159,7 +175,7 @@ private slots:
     }
 
     // ────────────────────────────────────────────────────
-    // ⑥ 空 payload / 无效 payload → 不崩溃
+    // ⑥ 无效 payload → 不崩溃（未握手回退模式下 <2B 被拒绝）
     // ────────────────────────────────────────────────────
     void invalidPayloadIgnored()
     {
@@ -168,8 +184,8 @@ private slots:
 
         QSignalSpy spy(&pw, &ParseWorker::dataPointReady);
 
-        // payload 不足 6 字节的数据帧
-        QByteArray shortPayload(3, '\x00');
+        // payload 不足 2 字节的数据帧（回退模式最小 1 通道 uint16 = 2B）
+        QByteArray shortPayload(1, '\0');
         pw.onRawDataReceived(makeFrame(Frame::TYPE_DATA, shortPayload));
         QTest::qWait(10);
         QCOMPARE(spy.count(), 0);  // 被忽略
@@ -183,6 +199,194 @@ private slots:
         ParseWorker pw(m_dbPath);
         QVERIFY(pw.buffer() != nullptr);
         QVERIFY(pw.dbManager() != nullptr);
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 握手帧测试
+    // ═══════════════════════════════════════════════════
+
+    // ⑧ 握手帧正确解析 3 通道 uint16 → handshakeCompleted 信号
+    void handshakeValidUint16()
+    {
+        ParseWorker pw(m_dbPath);
+        QSignalSpy spy(&pw, &ParseWorker::handshakeCompleted);
+        QSignalSpy ackSpy(&pw, &ParseWorker::writeData);
+
+        QVector<uint8_t> types = {Frame::CH_UINT16, Frame::CH_UINT16, Frame::CH_UINT16};
+        pw.onRawDataReceived(makeHandshakeFrame(3, types));
+        QTest::qWait(10);
+
+        QCOMPARE(spy.count(), 1);
+        QCOMPARE(spy.at(0).at(0).toInt(), 3);  // channelCount
+
+        // 验证回复了 ACK=0x00
+        QVERIFY(ackSpy.count() >= 1);
+        QByteArray ack = ackSpy.at(0).at(0).toByteArray();
+        QVERIFY(ack.size() >= 5);
+        QCOMPARE(static_cast<uint8_t>(ack[3]), Frame::TYPE_HANDSHAKE_ACK);
+        QCOMPARE(static_cast<uint8_t>(ack[4]), uint8_t(0x00));  // OK
+    }
+
+    // ⑨ 握手后数据帧按 uint16 正确解析
+    void handshakeThenParseUint16()
+    {
+        ParseWorker pw(m_dbPath);
+        pw.setCollecting(true);
+
+        // 先握手
+        QVector<uint8_t> types = {Frame::CH_UINT16, Frame::CH_UINT16};
+        pw.onRawDataReceived(makeHandshakeFrame(2, types));
+        QTest::qWait(10);
+
+        // 发送 2 通道数据帧: ch0=0x0102(258), ch1=0x0304(772)
+        QByteArray payload(4, '\0');
+        payload[0] = '\x02'; payload[1] = '\x01';   // ch0 LE
+        payload[2] = '\x04'; payload[3] = '\x03';   // ch1 LE
+        pw.onRawDataReceived(makeTypedDataFrame(payload));
+        QTest::qWait(10);
+
+        auto snap = pw.buffer()->snapshot();
+        QVERIFY(snap.size() >= 1);
+        QCOMPARE(snap.last().channels.size(), 2);
+        QCOMPARE(snap.last().channels[0], 258.0);
+        QCOMPARE(snap.last().channels[1], 772.0);
+    }
+
+    // ⑩ 握手后数据帧按 float 正确解析
+    void handshakeThenParseFloat()
+    {
+        ParseWorker pw(m_dbPath);
+        pw.setCollecting(true);
+
+        QVector<uint8_t> types = {Frame::CH_FLOAT};
+        pw.onRawDataReceived(makeHandshakeFrame(1, types));
+        QTest::qWait(10);
+
+        // 发送 1 通道 float: 3.14f (0x4048F5C3 LE)
+        float val = 3.14f;
+        QByteArray payload(4, '\0');
+        uint32_t bits;
+        std::memcpy(&bits, &val, sizeof(bits));
+        payload[0] = bits & 0xFF;
+        payload[1] = (bits >> 8) & 0xFF;
+        payload[2] = (bits >> 16) & 0xFF;
+        payload[3] = (bits >> 24) & 0xFF;
+        pw.onRawDataReceived(makeTypedDataFrame(payload));
+        QTest::qWait(10);
+
+        auto snap = pw.buffer()->snapshot();
+        QVERIFY(snap.size() >= 1);
+        QCOMPARE(snap.last().channels.size(), 1);
+        QVERIFY(qAbs(snap.last().channels[0] - 3.14) < 0.001);
+    }
+
+    // ⑪ 握手 channelCount=0 → 被拒绝
+    void handshakeRejectZeroChannels()
+    {
+        ParseWorker pw(m_dbPath);
+        QSignalSpy spy(&pw, &ParseWorker::handshakeCompleted);
+        QSignalSpy ackSpy(&pw, &ParseWorker::writeData);
+
+        QVector<uint8_t> types;
+        pw.onRawDataReceived(makeHandshakeFrame(0, types));
+        QTest::qWait(10);
+
+        QCOMPARE(spy.count(), 0);  // 未触发 handshakeCompleted
+        QVERIFY(ackSpy.count() >= 1);
+        QByteArray ack = ackSpy.at(0).at(0).toByteArray();
+        QCOMPARE(static_cast<uint8_t>(ack[3]), Frame::TYPE_HANDSHAKE_ACK);
+        QCOMPARE(static_cast<uint8_t>(ack[4]), uint8_t(0x01));  // rejected
+    }
+
+    // ⑫ 握手 type=0x09（不支持）→ 被拒绝
+    void handshakeRejectUnknownType()
+    {
+        ParseWorker pw(m_dbPath);
+        QSignalSpy spy(&pw, &ParseWorker::handshakeCompleted);
+        QSignalSpy ackSpy(&pw, &ParseWorker::writeData);
+
+        QVector<uint8_t> types = {0x09};  // 不存在
+        pw.onRawDataReceived(makeHandshakeFrame(1, types));
+        QTest::qWait(10);
+
+        QCOMPARE(spy.count(), 0);
+        QVERIFY(ackSpy.count() >= 1);
+        QByteArray ack = ackSpy.at(0).at(0).toByteArray();
+        QCOMPARE(static_cast<uint8_t>(ack[4]), uint8_t(0x01));
+    }
+
+    // ⑬ channelCount > 16 → 被拒绝
+    void handshakeRejectTooManyChannels()
+    {
+        ParseWorker pw(m_dbPath);
+        QSignalSpy spy(&pw, &ParseWorker::handshakeCompleted);
+
+        QVector<uint8_t> types(17, Frame::CH_UINT16);
+        pw.onRawDataReceived(makeHandshakeFrame(17, types));
+        QTest::qWait(10);
+
+        QCOMPARE(spy.count(), 0);
+    }
+
+    // ⑭ resetChannelConfig 后回退到旧行为
+    void resetChannelConfigFallback()
+    {
+        ParseWorker pw(m_dbPath);
+        pw.setCollecting(true);
+
+        // 先握手
+        QVector<uint8_t> types = {Frame::CH_UINT16, Frame::CH_UINT16};
+        pw.onRawDataReceived(makeHandshakeFrame(2, types));
+        QTest::qWait(10);
+
+        // 重置后应回退到默认
+        pw.resetChannelConfig();
+
+        // 发送 6 字节数据（旧行为: 3 通道 uint16）
+        QSignalSpy spy(&pw, &ParseWorker::dataPointReady);
+        pw.onRawDataReceived(makeDataFrame(10, 20, 30));
+        QTest::qWait(10);
+
+        QVERIFY(spy.count() >= 1);
+        auto snap = pw.buffer()->snapshot();
+        QVERIFY(snap.size() >= 1);
+        QCOMPARE(snap.last().channels.size(), 3);
+        QCOMPARE(snap.last().channels[0], 10.0);
+    }
+
+    // ⑮ 握手前后混合类型(uint8 + int16 + float) 正确解析
+    void handshakeMixedTypes()
+    {
+        ParseWorker pw(m_dbPath);
+        pw.setCollecting(true);
+
+        QVector<uint8_t> types = {Frame::CH_UINT8, Frame::CH_INT16, Frame::CH_FLOAT};
+        pw.onRawDataReceived(makeHandshakeFrame(3, types));
+        QTest::qWait(10);
+
+        // 构建: ch0=200(uint8), ch1=-100(int16), ch2=1.5(float)
+        QByteArray payload;
+        payload.append('\xC8');                          // uint8 200
+        int16_t neg = -100;
+        payload.append(static_cast<char>(neg & 0xFF));    // int16 LE low
+        payload.append(static_cast<char>((neg >> 8) & 0xFF));  // int16 LE high
+        float fv = 1.5f;
+        uint32_t bits;
+        std::memcpy(&bits, &fv, sizeof(bits));
+        payload.append(static_cast<char>(bits & 0xFF));
+        payload.append(static_cast<char>((bits >> 8) & 0xFF));
+        payload.append(static_cast<char>((bits >> 16) & 0xFF));
+        payload.append(static_cast<char>((bits >> 24) & 0xFF));
+
+        pw.onRawDataReceived(makeTypedDataFrame(payload));
+        QTest::qWait(10);
+
+        auto snap = pw.buffer()->snapshot();
+        QVERIFY(snap.size() >= 1);
+        QCOMPARE(snap.last().channels.size(), 3);
+        QCOMPARE(snap.last().channels[0], 200.0);
+        QCOMPARE(snap.last().channels[1], -100.0);
+        QVERIFY(qAbs(snap.last().channels[2] - 1.5) < 0.001);
     }
 };
 

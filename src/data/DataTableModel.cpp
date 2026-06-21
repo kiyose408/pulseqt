@@ -46,11 +46,7 @@ int DataTableModel::columnCount(const QModelIndex &parent) const
 {
     if(parent.isValid())
         return 0;
-
-    // 第 0 列 = 时间，后面 = 各通道
-    // 取第一条数据的通道数，没有数据则默认 3 列
-    int channels = m_snapshot.isEmpty() ? 3 : m_snapshot[0].channels.size();
-    return 1 + channels;        //时间戳+ch0 +ch1 +ch2
+    return 1 + m_channelCount;        //时间戳+ch0 +ch1 +ch2
 }
 
 QVariant DataTableModel::data(const QModelIndex &index, int role) const
@@ -105,4 +101,13 @@ void DataTableModel::onThrottleTimer()
     m_snapshot = std::move(snap);
     endResetModel();
     emit dataRefreshed();
+}
+
+void DataTableModel::setChannelCount(int count)
+{
+    if (count < 1 || count > 16) return;
+    if (count == m_channelCount) return;
+    m_channelCount = count;
+    beginResetModel();
+    endResetModel();
 }

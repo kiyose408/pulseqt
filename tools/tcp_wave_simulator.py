@@ -67,6 +67,17 @@ def make_frame(ch0, ch1, ch2):
     raw += struct.pack('<H', crc)
     return raw
 
+def make_handshake_frame():
+    """握手请求帧: channelCount=3, types=[uint16,uint16,uint16]"""
+    payload = bytes([3, 0x02, 0x02, 0x02])  # 3通道, 全部uint16
+    raw = b'\xA5\x5A'
+    raw += bytes([len(payload)])
+    raw += b'\x04'  # TYPE_HANDSHAKE_REQ
+    raw += payload
+    crc = crc16_ccitt(raw)
+    raw += struct.pack('<H', crc)
+    return raw
+
 # ── 主循环 — 持续监听，断开后不退出 ──────────────────────────────
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -78,6 +89,10 @@ print("Waiting for connection... (Ctrl+C to stop)")
 while True:
     conn, addr = s.accept()
     print(f"Connected: {addr}")
+
+    # 发送握手帧
+    conn.send(make_handshake_frame())
+    print("  Handshake sent: 3 channels, uint16")
 
     t0 = time.time()
     try:

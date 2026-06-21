@@ -22,13 +22,17 @@ public slots:
     void onRawDataReceived(const QByteArray &data);
     void setCollecting(bool on);
     void onHeartbeatCheck();
+    void resetChannelConfig();
 
 signals:
     void dataPointReady();
     void writeData(const QByteArray &data);
+    void handshakeCompleted(int channelCount, const QVector<int> &types);
 
 private:
     QByteArray buildFrame(uint8_t type, const QByteArray &payload = {});
+    bool parseHandshakePayload(const QByteArray &payload);
+    bool parseDataPayload(const QByteArray &payload, DataPoint &dp);
     ProtocolDecoder  m_decoder;
     bool m_collecting = false;
     QTimer *m_heartbeatTimer = nullptr;
@@ -36,6 +40,12 @@ private:
     int     m_heartbeatMissed = 0;
     DataBuffer       m_buffer{10000};
     DatabaseManager  m_dbManager;
+
+    // ── 握手协商的通道配置 ───────────────────────────
+    int m_channelCount = 0;                     // 通道数（0=未握手，回退默认行为）
+    QVector<int> m_channelTypes;                // 每通道的数据类型编码
+    bool m_handshakeDone = false;               // 握手是否已完成
+
     //三个成员都是值对象（不是指针 new）
     //，随 ParseWorker 一起 moveToThread，自动归属解析线程。不用手动管理生命周期。
 };

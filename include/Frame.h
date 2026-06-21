@@ -25,10 +25,31 @@ struct Frame
     QByteArray  payload;             // 数据负载（原始字节）
 
     // ── 帧类型常量 ────────────────────────────────────────────────
-    static constexpr uint8_t TYPE_DATA      = 0x01;  // 数据帧
-    static constexpr uint8_t TYPE_HEARTBEAT = 0x02;  // 心跳帧（保活）
-    static constexpr uint8_t TYPE_ACK       = 0x03;  // 心跳应答
-    static constexpr uint8_t TYPE_ERROR     = 0xFF;  // 错误帧
+    static constexpr uint8_t TYPE_DATA           = 0x01;  // 数据帧
+    static constexpr uint8_t TYPE_HEARTBEAT      = 0x02;  // 心跳帧（保活）
+    static constexpr uint8_t TYPE_ACK            = 0x03;  // 心跳应答
+    static constexpr uint8_t TYPE_HANDSHAKE_REQ  = 0x04;  // 握手请求（下位机→上位机：通道配置）
+    static constexpr uint8_t TYPE_HANDSHAKE_ACK  = 0x05;  // 握手应答（上位机→下位机：0x00=OK）
+    static constexpr uint8_t TYPE_ERROR          = 0xFF;  // 错误帧
+
+    // ── 通道数据类型编码（握手帧 payload 中使用）────────────────
+    enum ChannelDataType : uint8_t {
+        CH_UINT8  = 0x01,  // 1 字节，无符号 0~255
+        CH_UINT16 = 0x02,  // 2 字节，无符号 0~65535（默认）
+        CH_INT16  = 0x03,  // 2 字节，有符号 -32768~32767
+        CH_FLOAT  = 0x04   // 4 字节，IEEE 754 单精度
+    };
+
+    // 返回通道类型对应的字节数，未知类型返回 0
+    static inline int channelTypeByteSize(uint8_t type) {
+        switch (type) {
+            case CH_UINT8:  return 1;
+            case CH_UINT16: return 2;
+            case CH_INT16:  return 2;
+            case CH_FLOAT:  return 4;
+            default:        return 0;
+        }
+    }
 };
 
 // 使 Frame 可被 QSignalSpy 捕获（QtTest / 跨线程信号）
