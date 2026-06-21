@@ -86,7 +86,6 @@ add_library(PulseQtTestLib STATIC
     src/communication/ChannelManager.cpp
     src/communication/TcpChannel.cpp
     src/communication/ChannelRegistry.cpp
-    src/worker/TcpWorker.cpp
     src/worker/ParseWorker.cpp
     include/ProtocolDecoder.h
     include/Frame.h
@@ -97,7 +96,6 @@ add_library(PulseQtTestLib STATIC
     include/ChannelManager.h
     include/ChannelRegistry.h
     include/TcpChannel.h
-    include/TcpWorker.h
     include/ParseWorker.h
 )
 target_include_directories(PulseQtTestLib PRIVATE include)

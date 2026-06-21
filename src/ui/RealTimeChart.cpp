@@ -182,7 +182,8 @@ void RealTimeChart::paintEvent(QPaintEvent *)
     screenPainter.drawPixmap(0, 0, m_offscreen);
     qint64 tTotal = t.elapsed();
 
-    // 每 100 帧打印一次分段耗时 (ms) → 同时写文件
+    // 每 100 帧打印一次分段耗时 (ms) → 仅 Debug 构建
+#ifndef QT_NO_DEBUG
     static int fc = 0;
     if (++fc % 100 == 0) {
         QString line = QString("paint Y:%1ms Bg:%2ms Curve:%3ms total:%4ms\n")
@@ -191,6 +192,7 @@ void RealTimeChart::paintEvent(QPaintEvent *)
         QFile f("perf_log.txt");
         if (f.open(QIODevice::Append)) { f.write(line.toUtf8()); f.close(); }
     }
+#endif
 }
 
 void RealTimeChart::wheelEvent(QWheelEvent *event)

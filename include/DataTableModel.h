@@ -10,6 +10,7 @@ public:
     explicit DataTableModel(QObject *parent = nullptr);
 
     void setDataBuffer(DataBuffer *buffer);         //绑定数据源
+    void setChannelCount(int count);                //握手完成后设置通道数
     DataBuffer *dataBuffer() const;
     // QAbstractTableModel 必须覆写的 3 个纯虚函数
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
@@ -26,6 +27,7 @@ private slots:
 
 private:
     DataBuffer *m_buffer = nullptr;
+    int m_channelCount = 3;             // 通道数（默认 3，握手后更新）
     QVector<DataPoint> m_snapshot;
     QTimer *m_throttleTimer = nullptr; // 节流：100ms 最多刷新一次
     bool m_dirty = false;              // 有新数据但未刷新

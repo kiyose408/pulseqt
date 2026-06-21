@@ -189,6 +189,12 @@ void MainWindow::onConnect()
                     if (m_collecting) m_statusLabel->setText("已断开(重连中)");
                     else m_statusLabel->setText("已断开");
                 }, Qt::QueuedConnection);
+        connect(m_parseWorker, &ParseWorker::handshakeCompleted,
+                this, [this](int count, const QVector<int> &types) {
+            m_tableModel->setChannelCount(count);
+            m_statusLabel->setText(QString("已连接 · %1 通道").arg(count));
+            Q_UNUSED(types);
+        }, Qt::QueuedConnection);
 
         setDataBuffer(m_parseWorker->buffer());
         m_historyPlayer->setDbPath("data.db");
@@ -223,10 +229,13 @@ void MainWindow::onDisconnect()
     m_collecting = false;
     m_connected  = false;
 
-    // 通知 ParseWorker 停止采集
-    if (m_parseWorker)
+    // 通知 ParseWorker 停止采集 + 重置通道配置
+    if (m_parseWorker) {
         QMetaObject::invokeMethod(m_parseWorker, "setCollecting",
                                   Qt::QueuedConnection, Q_ARG(bool, false));
+        QMetaObject::invokeMethod(m_parseWorker, "resetChannelConfig",
+                                  Qt::QueuedConnection);
+    }
 
     // 关闭通道（ParseWorker + DataBuffer + 线程存活，历史回放可用）
     QMetaObject::invokeMethod(m_channelManager, "disconnectDevice",
@@ -273,6 +282,11 @@ void MainWindow::teardown()
 
     if (m_channelManager) {
         QMetaObject::invokeMethod(m_channelManager, "disconnectDevice",
+                                  Qt::BlockingQueuedConnection);
+    }
+
+    if (m_parseWorker) {
+        QMetaObject::invokeMethod(m_parseWorker, "resetChannelConfig",
                                   Qt::BlockingQueuedConnection);
     }
 
