@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.1.1 (2026-06-21)
+
+### 🔌 协议层：握手帧 (T018 完成)
+
+- 实现握手请求 (0x04) / 握手应答 (0x05) — 下位机连接后主动声明通道配置
+- `Frame::ChannelDataType` 枚举支持 uint8 / uint16 / int16 / float 四种通道类型
+- `ParseWorker::parseHandshakePayload()`：校验 1~16 通道 + 类型有效性，握手失败回复 0x01
+- `ParseWorker::parseDataPayload()`：按协商类型逐通道解析，`m_channelCount==0` 时回退旧行为
+- 心跳超时自动调用 `resetChannelConfig()`，断线重连强制重新握手
+- `DataTableModel::setChannelCount()`：握手后动态调整表格列数
+- `MainWindow` 状态栏显示 "已连接 · N 通道"
+- 向后兼容：旧版模拟器不发握手帧时行为完全不变
+
+### 🧪 新增测试
+
+- TestParseWorker 新增 8 个握手测试用例（握手解析 / uint16解析 / float解析 / 混合类型 / 拒绝零通道 / 拒绝未知类型 / 拒绝超16通道 / reset回退）
+- 总计 53 单元测试 · 7 二进制
+
+---
+
 ## v1.1.0 (2026-06-20)
 
 ### 🏗 架构重构

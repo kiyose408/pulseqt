@@ -222,15 +222,17 @@ PulseQt/
 ├── include/                    头文件
 │   ├── MainWindow.h            RealTimeChart.h   HistoryPlayer.h
 │   ├── DataTableModel.h        DataBuffer.h      DataPoint.h
-│   ├── DatabaseManager.h       ExportDialog.h
-│   ├── ProtocolDecoder.h       Frame.h
-│   ├── ParseWorker.h           TcpWorker.h       SerialWorker.h
+│   ├── DatabaseManager.h       ExportDialog.h    ConnectionDialog.h
+│   ├── ProtocolDecoder.h       Frame.h           Logger.h
+│   ├── IChannel.h              SerialChannel.h   TcpChannel.h
+│   ├── ChannelManager.h        ChannelRegistry.h
+│   └── ParseWorker.h           TcpWorker.h  (LEGACY, 仅测试)
 ├── src/                        源码
 │   ├── main.cpp
 │   ├── ui/                     MainWindow / RealTimeChart / HistoryPlayer / ExportDialog
 │   ├── data/                   DataBuffer / DataTableModel / DatabaseManager
 │   ├── protocol/               ProtocolDecoder
-│   ├── worker/                 ParseWorker / TcpWorker / SerialWorker
+│   ├── worker/                 ParseWorker / TcpWorker (LEGACY)
 │   └── utils/                  Logger
 ├── tools/                      辅助工具
 │   ├── tcp_wave_simulator.py   波形模拟器（正弦/锯齿/三角，推荐测试用）

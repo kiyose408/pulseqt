@@ -13,6 +13,7 @@
 //==============================================================================
 
 #include "ChannelManager.h"
+#include <QThread>
 #include <QDebug>
 
 //==============================================================================
@@ -47,6 +48,9 @@ ChannelManager::~ChannelManager()
 
 void ChannelManager::setChannel(IChannel *channel)
 {
+    // 线程安全守卫：setChannel 必须在 ChannelManager 所属线程调用
+    Q_ASSERT(thread() == QThread::currentThread());
+
     // 先断开旧通道的所有信号连接 + 安全销毁
     if (m_channel) {
         m_channel->disconnect(this);
