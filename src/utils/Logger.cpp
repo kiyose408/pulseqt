@@ -34,10 +34,9 @@ void Logger::init(const QString &filePath)
     m_filePath = filePath;
     m_file.setFileName(filePath);
 
-    // 以追加 + 文本模式打开
-    m_file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text);
+    if (!m_file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text))
+        qWarning() << "Logger: cannot open" << filePath;
 
-    // 安装全局消息处理器（替换 Qt 默认的控制台输出）
     qInstallMessageHandler(Logger::messageHandler);
 }
 
@@ -126,5 +125,6 @@ void Logger::rotateIfNeeded()
 
     // 打开新的空 app.log
     m_file.setFileName(m_filePath);
-    m_file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text);
+    if (!m_file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text))
+        qWarning() << "Logger: cannot reopen after rotate";
 }
