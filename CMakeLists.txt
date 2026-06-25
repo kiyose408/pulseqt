@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 # 2. 定义项目名称为 PulseQt，版本号为 1.0.0，主要使用的编程语言是 C++
-project(PulseQt VERSION 1.1.0 LANGUAGES CXX)
+project(PulseQt VERSION 1.1.0 LANGUAGES C CXX)
 
 # 3. 设置 C++ 编译标准为 C++17
 set(CMAKE_CXX_STANDARD 17)
@@ -64,10 +64,30 @@ qt_add_executable(PulseQt
     src/ui/HistoryPlayer.cpp
     include/ExportDialog.h
     src/ui/ExportDialog.cpp
+    include/MagCollectorFrame.h
+    include/MagCollectorDecoder.h
+    src/protocol/MagCollectorDecoder.cpp
+    include/DollarParser.h
+    src/protocol/DollarParser.cpp
+    include/MagFormula.h
+    include/MagDataPoint.h
+    include/MagDataBuffer.h
+    src/data/MagDataBuffer.cpp
+    include/MagMainWindow.h
+    src/ui/MagMainWindow.cpp
+    include/FftProcessor.h
+    src/fft/FftProcessor.cpp
+    src/fft/kiss_fft.c
+    src/fft/kiss_fftr.c
+    src/fft/kiss_fft.h
+    src/fft/kiss_fftr.h
+    src/fft/_kiss_fft_guts.h
+    src/fft/kiss_fft_log.h
 )
 
 # 7. 为 PulseQt 程序添加私有的头文件搜索路径（PRIVATE 表示这些头文件仅本项目内部使用）
 target_include_directories(PulseQt PRIVATE include)
+target_include_directories(PulseQt PRIVATE src/fft)
 
 # 8. 将前面找到的 5 个 Qt6 模块库链接到 PulseQt 可执行程序上
 target_link_libraries(PulseQt PRIVATE Qt6::Core Qt6::Widgets Qt6::SerialPort Qt6::Network Qt6::Sql)
@@ -81,6 +101,12 @@ enable_testing()
 # 头文件也需列入源列表，让 AUTOMOC 生成信号实现
 add_library(PulseQtTestLib STATIC
     src/protocol/ProtocolDecoder.cpp
+    src/protocol/MagCollectorDecoder.cpp
+    src/protocol/DollarParser.cpp
+    src/data/MagDataBuffer.cpp
+    src/fft/kiss_fft.c
+    src/fft/kiss_fftr.c
+    src/fft/FftProcessor.cpp
     src/data/DataBuffer.cpp
     src/data/DatabaseManager.cpp
     src/communication/ChannelManager.cpp
@@ -89,6 +115,13 @@ add_library(PulseQtTestLib STATIC
     src/worker/ParseWorker.cpp
     include/ProtocolDecoder.h
     include/Frame.h
+    include/MagCollectorFrame.h
+    include/MagCollectorDecoder.h
+    include/DollarParser.h
+    include/MagFormula.h
+    include/MagDataPoint.h
+    include/MagDataBuffer.h
+    include/FftProcessor.h
     include/DataBuffer.h
     include/DataPoint.h
     include/DatabaseManager.h
@@ -99,6 +132,7 @@ add_library(PulseQtTestLib STATIC
     include/ParseWorker.h
 )
 target_include_directories(PulseQtTestLib PRIVATE include)
+target_include_directories(PulseQtTestLib PRIVATE src/fft)
 target_link_libraries(PulseQtTestLib PUBLIC Qt6::Core Qt6::Sql Qt6::Network)
 
 # T022 — ProtocolDecoder + Frame 单元测试
@@ -166,6 +200,34 @@ target_include_directories(TestChannelManager PRIVATE ${CMAKE_BINARY_DIR}/TestCh
 target_link_libraries(TestChannelManager PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME ChannelManager COMMAND TestChannelManager)
 
+# T007 — DollarParser + MagFormula 单元测试
+qt_add_executable(TestDollarParser
+    tests/TestDollarParser.cpp
+)
+target_include_directories(TestDollarParser PRIVATE include)
+target_include_directories(TestDollarParser PRIVATE ${CMAKE_BINARY_DIR}/TestDollarParser_autogen/include_Debug)
+target_link_libraries(TestDollarParser PRIVATE PulseQtTestLib Qt6::Test)
+add_test(NAME DollarParser COMMAND TestDollarParser)
+
+# T005 — MagCollectorDecoder 单元测试
+qt_add_executable(TestMagCollectorDecoder
+    tests/TestMagCollectorDecoder.cpp
+)
+target_include_directories(TestMagCollectorDecoder PRIVATE include)
+target_include_directories(TestMagCollectorDecoder PRIVATE ${CMAKE_BINARY_DIR}/TestMagCollectorDecoder_autogen/include_Debug)
+target_link_libraries(TestMagCollectorDecoder PRIVATE PulseQtTestLib Qt6::Test)
+add_test(NAME MagCollectorDecoder COMMAND TestMagCollectorDecoder)
+
+# T010 — FftProcessor 单元测试
+qt_add_executable(TestFftProcessor
+    tests/TestFftProcessor.cpp
+)
+target_include_directories(TestFftProcessor PRIVATE include)
+target_include_directories(TestFftProcessor PRIVATE src/fft)
+target_include_directories(TestFftProcessor PRIVATE ${CMAKE_BINARY_DIR}/TestFftProcessor_autogen/include_Debug)
+target_link_libraries(TestFftProcessor PRIVATE PulseQtTestLib Qt6::Test)
+add_test(NAME FftProcessor COMMAND TestFftProcessor)
+
 # T029 — ChannelRegistry 单元测试
 qt_add_executable(TestChannelRegistry
     tests/TestChannelRegistry.cpp
@@ -177,6 +239,6 @@ add_test(NAME ChannelRegistry COMMAND TestChannelRegistry)
 
 # 测试运行时需 Qt DLL（Windows 专用）
 if(WIN32)
-    set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration ChannelManager ChannelRegistry ParseWorker PROPERTIES
+    set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration ChannelManager ChannelRegistry ParseWorker MagCollectorDecoder DollarParser FftProcessor PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
 endif()

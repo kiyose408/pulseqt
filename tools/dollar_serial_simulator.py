@@ -95,60 +95,64 @@ def main():
     print(f"[串口模拟器] 50Hz 初相: {args.phase}°")
     print(f"[串口模拟器] 等待客户端连接...")
 
+    sequence = 0
+
     try:
-        conn, addr = server.accept()
-        print(f"[串口模拟器] 客户端已连接: {addr[0]}:{addr[1]}")
-        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-        next_tick = time.perf_counter()
-        sequence = 0
-
         while True:
-            # 精确定时
-            now = time.perf_counter()
-            if now < next_tick:
-                sleep_time = next_tick - now
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
-            next_tick += interval
+            conn, addr = server.accept()
+            print(f"[串口模拟器] 客户端已连接: {addr[0]}:{addr[1]}")
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-            if next_tick < time.perf_counter() - 1.0:
-                next_tick = time.perf_counter() + interval
+            next_tick = time.perf_counter()
+            while True:
+                # 精确定时
+                now = time.perf_counter()
+                if now < next_tick:
+                    sleep_time = next_tick - now
+                    if sleep_time > 0:
+                        time.sleep(sleep_time)
+                next_tick += interval
 
-            # 生成 50Hz 正弦波
-            t = sequence / args.rate
-            value = baseline + amplitude * math.sin(2 * math.pi * 50.0 * t + phase_rad)
-            sequence += 1
+                if next_tick < time.perf_counter() - 1.0:
+                    next_tick = time.perf_counter() + interval
 
-            # 格式化
-            line = format_dollar(value)
+                # 生成 50Hz 正弦波
+                t = sequence / args.rate
+                value = baseline + amplitude * math.sin(2 * math.pi * 50.0 * t + phase_rad)
+                sequence += 1
 
-            # 发送
-            try:
-                conn.sendall(line.encode("ascii"))
-                line_count += 1
-            except (BrokenPipeError, ConnectionResetError) as e:
-                print(f"[串口模拟器] 发送失败: {e}")
-                break
+                # 格式化
+                line = format_dollar(value)
 
-            # 统计
-            elapsed = time.time() - last_report
-            if elapsed >= args.verbose:
-                actual_rate = line_count / (time.time() - start_time)
-                mag_now = value / 3.0
-                print(f"[串口模拟器] 已发送 {line_count} 行 | "
-                      f"当前值: {value:.3f} | Mag: {mag_now:.3f} | "
-                      f"实际速率: {actual_rate:.1f} Hz")
-                last_report = time.time()
+                # 发送
+                try:
+                    conn.sendall(line.encode("ascii"))
+                    line_count += 1
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError) as e:
+                    print(f"[串口模拟器] 客户端断开: {e}")
+                    break
 
-            if args.duration > 0 and (time.time() - start_time) >= args.duration:
-                print(f"[串口模拟器] 达到设定时长 {args.duration}s, 停止")
-                break
+                # 统计
+                elapsed_t = time.time() - last_report
+                if elapsed_t >= args.verbose:
+                    actual_rate = line_count / (time.time() - start_time)
+                    mag_now = value / 3.0
+                    print(f"[串口模拟器] 已发送 {line_count} 行 | "
+                          f"当前值: {value:.3f} | Mag: {mag_now:.3f} | "
+                          f"实际速率: {actual_rate:.1f} Hz")
+                    last_report = time.time()
+
+                if args.duration > 0 and (time.time() - start_time) >= args.duration:
+                    print(f"[串口模拟器] 达到设定时长 {args.duration}s, 停止")
+                    return
+
+            # 客户端断开 → 清理并等待重连
+            conn.close()
+            print(f"[串口模拟器] 等待客户端重连...")
 
     except KeyboardInterrupt:
         print("\n[串口模拟器] 用户中断")
     finally:
-        conn.close()
         server.close()
         elapsed = time.time() - start_time
         avg_rate = line_count / elapsed if elapsed > 0 else 0

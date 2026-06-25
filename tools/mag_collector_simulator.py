@@ -179,61 +179,65 @@ def main():
     print(f"[模拟器] 等待客户端连接...")
 
     try:
-        conn, addr = server.accept()
-        print(f"[模拟器] 客户端已连接: {addr[0]}:{addr[1]}")
-        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-        next_tick = time.perf_counter()
-
         while True:
-            # 精确 1000Hz 定时
-            now = time.perf_counter()
-            if now < next_tick:
-                sleep_time = next_tick - now
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
-            next_tick += interval
+            conn, addr = server.accept()
+            print(f"[模拟器] 客户端已连接: {addr[0]}:{addr[1]}")
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-            # 若积压过多 (如调试断点) 则追上当前时间
-            if next_tick < time.perf_counter() - 1.0:
-                next_tick = time.perf_counter() + interval
+            next_tick = time.perf_counter()
 
-            # 生成 6 通道数据: 50Hz 正弦波
-            t = sequence / args.rate  # 时间 (s)
-            channel_data = [
-                int(amp * math.sin(2 * math.pi * 50.0 * t + math.radians(phases[i])))
-                for i in range(6)
-            ]
+            while True:
+                # 精确 1000Hz 定时
+                now = time.perf_counter()
+                if now < next_tick:
+                    sleep_time = next_tick - now
+                    if sleep_time > 0:
+                        time.sleep(sleep_time)
+                next_tick += interval
 
-            # 构建帧
-            frame = build_frame(sequence, channel_data)
-            sequence += 1
+                # 若积压过多 (如调试断点) 则追上当前时间
+                if next_tick < time.perf_counter() - 1.0:
+                    next_tick = time.perf_counter() + interval
 
-            # 发送
-            try:
-                conn.sendall(frame)
-                frame_count += 1
-            except (BrokenPipeError, ConnectionResetError) as e:
-                print(f"[模拟器] 发送失败: {e}")
-                break
+                # 生成 6 通道数据: 50Hz 正弦波
+                t = sequence / args.rate  # 时间 (s)
+                channel_data = [
+                    int(amp * math.sin(2 * math.pi * 50.0 * t + math.radians(phases[i])))
+                    for i in range(6)
+                ]
 
-            # 统计报告
-            elapsed = time.time() - last_report
-            if elapsed >= args.verbose:
-                actual_rate = frame_count / (time.time() - start_time)
-                print(f"[模拟器] 已发送 {frame_count} 帧 | "
-                      f"序列: {sequence} | 实际速率: {actual_rate:.1f} Hz")
-                last_report = time.time()
+                # 构建帧
+                frame = build_frame(sequence, channel_data)
+                sequence += 1
 
-            # 时长限制
-            if args.duration > 0 and (time.time() - start_time) >= args.duration:
-                print(f"[模拟器] 达到设定时长 {args.duration}s, 停止")
-                break
+                # 发送
+                try:
+                    conn.sendall(frame)
+                    frame_count += 1
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError) as e:
+                    print(f"[模拟器] 客户端断开: {e}")
+                    break
+
+                # 统计报告
+                elapsed = time.time() - last_report
+                if elapsed >= args.verbose:
+                    actual_rate = frame_count / (time.time() - start_time)
+                    print(f"[模拟器] 已发送 {frame_count} 帧 | "
+                          f"序列: {sequence} | 实际速率: {actual_rate:.1f} Hz")
+                    last_report = time.time()
+
+                # 时长限制
+                if args.duration > 0 and (time.time() - start_time) >= args.duration:
+                    print(f"[模拟器] 达到设定时长 {args.duration}s, 停止")
+                    return
+
+            # 客户端断开 → 清理并等待重连
+            conn.close()
+            print(f"[模拟器] 等待客户端重连...")
 
     except KeyboardInterrupt:
         print("\n[模拟器] 用户中断")
     finally:
-        conn.close()
         server.close()
         elapsed = time.time() - start_time
         avg_rate = frame_count / elapsed if elapsed > 0 else 0
