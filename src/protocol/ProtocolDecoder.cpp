@@ -171,10 +171,8 @@ void ProtocolDecoder::feed(const QByteArray &data)
                 emit frameDecoded(frame);
             } else {
                 // ❌ 校验失败 → 记录日志，丢弃此帧
-                static int crcErrCount = 0;
-                if (++crcErrCount <= 3)  // 前三次打印，之后静默（防止洪水）
-                    qWarning() << "CRC mismatch: calc" << Qt::hex << crcCalc
-                               << "recv" << m_crcReceived;
+                qWarning() << "CRC mismatch: calc" << Qt::hex << crcCalc
+                           << "recv" << m_crcReceived;
                 emit crcError(m_buffer);
             }
 
