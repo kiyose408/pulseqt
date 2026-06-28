@@ -168,7 +168,9 @@ void MainWindow::onConnect()
         m_commThread     = new QThread(this);
         m_parseThread    = new QThread(this);
         m_channelManager = new ChannelManager();
-        m_parseWorker    = new ParseWorker();
+        QString protocol = cfg.value("protocol", "自定义").toString();
+        m_parseWorker = new ParseWorker("data.db",
+            protocol == "Modbus RTU" ? "modbus" : "raw");
 
         m_channelManager->moveToThread(m_commThread);
         m_parseWorker->moveToThread(m_parseThread);
@@ -208,6 +210,11 @@ void MainWindow::onConnect()
         m_commThread->start();
         m_parseThread->start();
     }
+
+    // ── 每次连接都切换协议（ParseWorker 复用，不会重建）─────
+    QString protocol = cfg.value("protocol", "自定义").toString();
+    QMetaObject::invokeMethod(m_parseWorker, "setProtocol", Qt::QueuedConnection,
+                              Q_ARG(QString, protocol == "Modbus RTU" ? "modbus" : "raw"));
 
     // ── 在通信线程内创建通道 → 设置 → 连接 ────────────
     //    通道在通信线程创建，避免 setParent 跨线程警告

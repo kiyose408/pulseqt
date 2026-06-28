@@ -9,11 +9,16 @@
 #include "DataBuffer.h"
 #include "DatabaseManager.h"
 
+class ModbusDecoder;
+class ModbusMaster;
+
 class ParseWorker : public QObject
 {
     Q_OBJECT
 public:
-    explicit ParseWorker(const QString &dbPath = "data.db", QObject *parent = nullptr);
+    explicit ParseWorker(const QString &dbPath = "data.db",
+                         const QString &protocol = "raw",
+                         QObject *parent = nullptr);
     ~ParseWorker();
     DataBuffer *buffer();
     DatabaseManager *dbManager();
@@ -23,6 +28,7 @@ public slots:
     void setCollecting(bool on);
     void onHeartbeatCheck();
     void resetChannelConfig();
+    void setProtocol(const QString &protocol);  // "raw" / "modbus"
 
 signals:
     void dataPointReady();
@@ -30,10 +36,14 @@ signals:
     void handshakeCompleted(int channelCount, const QVector<int> &types);
 
 private:
+    void onFrameDecoded(const Frame &frame);  // 统一的帧处理（与当前 decoder 解耦）
     QByteArray buildFrame(uint8_t type, const QByteArray &payload = {});
     bool parseHandshakePayload(const QByteArray &payload);
-    bool parseDataPayload(const QByteArray &payload, DataPoint &dp);
-    ProtocolDecoder  m_decoder;
+    bool parseDataPayload(const QByteArray &payload, DataPoint &dp, bool modbus = false);
+    QObject        *m_decoder    = nullptr;  // 当前活跃的解码器
+    ProtocolDecoder *m_rawDecoder = nullptr;  // 自定义协议
+    ModbusDecoder   *m_modbusDecoder = nullptr;  // Modbus RTU
+    ModbusMaster    *m_modbusMaster  = nullptr;  // Modbus 主站轮询
     bool m_collecting = false;
     QTimer *m_heartbeatTimer = nullptr;
     qint64  m_lastDataTime   = 0;

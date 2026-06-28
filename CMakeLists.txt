@@ -49,6 +49,10 @@ qt_add_executable(PulseQt
     include/Frame.h
     include/ProtocolDecoder.h
     src/protocol/ProtocolDecoder.cpp
+    include/ModbusDecoder.h
+    src/protocol/ModbusDecoder.cpp
+    include/ModbusMaster.h
+    src/protocol/ModbusMaster.cpp
     include/DataPoint.h
     include/DataBuffer.h
     src/data/DataBuffer.cpp
@@ -81,6 +85,8 @@ enable_testing()
 # 头文件也需列入源列表，让 AUTOMOC 生成信号实现
 add_library(PulseQtTestLib STATIC
     src/protocol/ProtocolDecoder.cpp
+    src/protocol/ModbusDecoder.cpp
+    src/protocol/ModbusMaster.cpp
     src/data/DataBuffer.cpp
     src/data/DatabaseManager.cpp
     src/communication/ChannelManager.cpp
@@ -88,6 +94,8 @@ add_library(PulseQtTestLib STATIC
     src/communication/ChannelRegistry.cpp
     src/worker/ParseWorker.cpp
     include/ProtocolDecoder.h
+    include/ModbusDecoder.h
+    include/ModbusMaster.h
     include/Frame.h
     include/DataBuffer.h
     include/DataPoint.h

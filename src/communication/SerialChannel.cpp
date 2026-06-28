@@ -148,6 +148,8 @@ static const bool serialRegistered = []() {
             {"1","1.5","2"}),
         ConfigField("parity",   "校验位", "combo", "None",
             {"None","Even","Odd"}),
+        ConfigField("protocol", "协议",   "combo", "自定义",
+            {"自定义","Modbus RTU"}),
     };
     desc.factory = +[](const QVariantMap &cfg, QObject *parent) -> IChannel* {
         auto parity = QSerialPort::NoParity;
