@@ -10,6 +10,7 @@
 
 #include "SerialChannel.h"
 #include <QDebug>
+#include <QTimer>
 
 //==============================================================================
 // 构造 / 析构
@@ -51,6 +52,7 @@ bool SerialChannel::open()
     m_serialPort->setDataBits(m_dataBits);
     m_serialPort->setStopBits(m_stopBits);
     m_serialPort->setParity(m_parity);
+    m_serialPort->setReadBufferSize(0);  // 无限缓冲，防 ring buffer 溢出
 
     // 同步打开物理串口（阻塞，立即返回结果）
     if (!m_serialPort->open(QIODevice::ReadWrite)) {
@@ -66,8 +68,10 @@ bool SerialChannel::open()
 
     // 收到数据 → 读取全部 → 转发给上层
     connect(m_serialPort, &QSerialPort::readyRead, this, [this]() {
-        QByteArray data = m_serialPort->readAll();
-        emit readyRead(data);
+        qint64 avail = m_serialPort->bytesAvailable();
+        if (avail <= 0) return;                  // 防止 ring buffer 状态异常
+        QByteArray data = m_serialPort->read(avail);
+        if (!data.isEmpty()) emit readyRead(data);
     });
 
     // 串口错误 → 转发错误信息
@@ -77,6 +81,18 @@ bool SerialChannel::open()
             emit errorOccurred(m_serialPort->errorString());
     });
 
+    // ── 缓冲区状态监控（压测用，10 秒一次）─────────
+    auto *monitor = new QTimer(this);
+    monitor->setInterval(10000);
+    connect(monitor, &QTimer::timeout, this, [this]() {
+        qint64 avail = m_serialPort ? m_serialPort->bytesAvailable() : -1;
+        if (avail > 100)
+            qWarning() << "[串口缓冲] 积压" << avail << "字节 — 可能溢出!";
+        else if (avail >= 0)
+            qDebug() << "[串口缓冲] normal:" << avail << "字节";
+    });
+    monitor->start();
+
     emit connected();
     qInfo() << "SerialChannel opened:" << m_portName << "@" << m_baudRate;
     return true;
@@ -85,9 +101,11 @@ bool SerialChannel::open()
 void SerialChannel::close()
 {
     if (m_serialPort) {
-        m_serialPort->close();        // 关闭物理串口
-        delete m_serialPort;           // 释放资源
-        m_serialPort = nullptr;        // 标记为已关闭
+        m_serialPort->disconnect();
+        m_serialPort->readAll();      // 清空内部 ring buffer，防止 close 时 ASSERT
+        m_serialPort->close();
+        delete m_serialPort;
+        m_serialPort = nullptr;
         emit disconnected();
     }
 }

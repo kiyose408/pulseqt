@@ -317,3 +317,33 @@ yMin -= pad; yMax += pad;
 | 🟡 泄漏 | 1 | ⑲ |
 | 🟢 工程 | 5 | ⑥ ⑧ ⑩ ⑫ ⑱ |
 | 🔵 已知 | 1 | ⑳ |
+
+---
+
+## Bug ㉑ · 串口长时间运行后 QRingBuffer ASSERT 崩溃
+
+**发现位置**：用户反馈 10 分钟串口压测后弹窗 `ASSERT: bytes <= bufferSize`。
+
+**现象**：Windows Debug 构建下，串口 100Hz 连续采集 10+ 分钟后，QSerialPort 内部 ring buffer 断言失败。Release 构建不弹窗但可能静默丢数据。
+
+**根因**：连锁积压——`ProtocolDecoder::feed()` 每解码一帧就调用 `qDebug()` 写日志，Logger 每次 `QTextStream::flush()` 强制刷盘。100Hz × 数分钟 → 巨量磁盘 I/O → parseThread 阻塞 → ChannelManager 的 `readyRead` 处理延迟 → QSerialPort 内部 ring buffer 未及时 readAll 清空 → 溢出 → ASSERT。
+
+**修复**：
+1. 删除 `ProtocolDecoder::feed()` 中每帧 `qDebug("Frame decoded...")`——100Hz 下纯噪音日志，无调试价值
+2. CRC 误码日志限制为前 3 次——防异常洪水
+3. `SerialChannel::readyRead` 中 `readAll()` 改为 `bytesAvailable() + read()`，加零字节守卫
+4. `SerialChannel::close()` 中先 `disconnect()` 再 `close()`，关闭前 `readAll()` 清空残留
+
+**教训**：高频路径上任何 I/O 操作（包括日志写盘）都可能通过线程间锁竞争间接影响实时数据管道。Debug 日志应限制频率或仅在异常时输出。
+
+---
+
+## 累计统计
+
+| 级别 | 数量 | 编号 |
+|:--:|:--:|------|
+| 🔴 阻塞 | 4 | ④ ⑤ ⑭ ㉑ |
+| 🟡 功能 | 10 | ① ② ③ ⑦ ⑨ ⑪ ⑬ ⑮ ⑯ ⑰ |
+| 🟡 泄漏 | 1 | ⑲ |
+| 🟢 工程 | 5 | ⑥ ⑧ ⑩ ⑫ ⑱ |
+| 🔵 已知 | 1 | ⑳ |
