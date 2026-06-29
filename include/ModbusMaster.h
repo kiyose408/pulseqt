@@ -39,7 +39,7 @@ private slots:
 
 private:
     QTimer  *m_timer  = nullptr;
-    uint8_t  m_slave;
+    uint8_t  m_slave = 1;
     uint16_t m_startAddr = 0;
     uint16_t m_regCount  = 3;  // 3 通道
 };

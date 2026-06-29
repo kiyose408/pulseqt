@@ -17,7 +17,6 @@ class ParseWorker : public QObject
     Q_OBJECT
 public:
     explicit ParseWorker(const QString &dbPath = "data.db",
-                         const QString &protocol = "raw",
                          QObject *parent = nullptr);
     ~ParseWorker();
     DataBuffer *buffer();
@@ -49,7 +48,7 @@ private:
     QTimer *m_heartbeatTimer = nullptr;
     qint64  m_lastDataTime   = 0;
     int     m_heartbeatMissed = 0;
-    DataBuffer       m_buffer{10000};
+    DataBuffer       m_buffer;
     DatabaseManager  m_dbManager;
 
     int m_channelCount = 0;

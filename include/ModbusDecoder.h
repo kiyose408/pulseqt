@@ -24,7 +24,6 @@ signals:
     void frameDecoded(const Frame &frame);
 
 private:
-    static uint16_t crc16_modbus(const uint8_t *data, size_t len);
     QByteArray m_buffer;
 };
 

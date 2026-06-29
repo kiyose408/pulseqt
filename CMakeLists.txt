@@ -96,6 +96,7 @@ add_library(PulseQtTestLib STATIC
     include/ProtocolDecoder.h
     include/ModbusDecoder.h
     include/ModbusMaster.h
+    include/ModbusCRC.h
     include/Frame.h
     include/DataBuffer.h
     include/DataPoint.h

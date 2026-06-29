@@ -6,8 +6,7 @@
 #include <QDebug>
 #include <cstring>
 
-ParseWorker::ParseWorker(const QString &dbPath, const QString &protocol,
-                         QObject *parent)
+ParseWorker::ParseWorker(const QString &dbPath, QObject *parent)
     : QObject(parent)
 {
     m_dbManager.init(dbPath);
@@ -18,25 +17,22 @@ ParseWorker::ParseWorker(const QString &dbPath, const QString &protocol,
     connect(m_heartbeatTimer, &QTimer::timeout, this, &ParseWorker::onHeartbeatCheck);
     m_heartbeatTimer->start();
 
-    setProtocol(protocol);
+    setProtocol("raw");
 }
 
 void ParseWorker::setProtocol(const QString &protocol)
 {
-    // 断开旧解码器
     if (m_decoder) {
         disconnect(m_decoder, nullptr, this, nullptr);
         m_decoder = nullptr;
     }
 
-    // 停止旧主站轮询
     if (m_modbusMaster) {
         m_modbusMaster->stop();
         disconnect(m_modbusMaster, nullptr, this, nullptr);
     }
 
     if (protocol == "modbus") {
-        // ── Modbus 主从模式 ──
         if (!m_modbusDecoder)
             m_modbusDecoder = new ModbusDecoder(this);
         m_decoder = m_modbusDecoder;
@@ -49,11 +45,9 @@ void ParseWorker::setProtocol(const QString &protocol)
                 this, &ParseWorker::writeData);
         m_modbusMaster->start();
 
-        // Modbus 不需要心跳
         if (m_heartbeatTimer)
             m_heartbeatTimer->stop();
     } else {
-        // ── 自定义协议 ──
         if (!m_rawDecoder)
             m_rawDecoder = new ProtocolDecoder(this);
         m_decoder = m_rawDecoder;
@@ -65,24 +59,38 @@ void ParseWorker::setProtocol(const QString &protocol)
     }
 }
 
+void ParseWorker::teardown()
+{
+    if (m_modbusMaster) {
+        m_modbusMaster->stop();
+        disconnect(m_modbusMaster, nullptr, this, nullptr);
+    }
+    if (m_heartbeatTimer)
+        m_heartbeatTimer->stop();
+    m_collecting = false;
+    m_dbManager.flush();
+}
+
 void ParseWorker::onFrameDecoded(const Frame &frame)
 {
-    // Modbus RTU 功能码 0x03/0x04：直接走数据解析（不与自定义协议 TYPE_ACK=0x03 混淆）
     bool isModbus = (frame.type == 0x03 || frame.type == 0x04);
+    bool isModbusEx = (frame.type == 0x83 || frame.type == 0x84);
+    if (isModbusEx) {
+        uint8_t excCode = frame.payload.size() >= 1
+            ? static_cast<uint8_t>(frame.payload[0]) : 0;
+        qWarning() << "Modbus exception: func" << Qt::hex << (frame.type & 0x7F)
+                   << "code" << excCode;
+        return;
+    }
     if (!isModbus) {
-        // 心跳应答
         if (frame.type == Frame::TYPE_ACK) {
             m_heartbeatMissed = 0;
             return;
         }
-
-        // 心跳请求
         if (frame.type == Frame::TYPE_HEARTBEAT) {
             emit writeData(buildFrame(Frame::TYPE_ACK));
             return;
         }
-
-        // 握手请求
         if (frame.type == Frame::TYPE_HANDSHAKE_REQ) {
             if (parseHandshakePayload(frame.payload)) {
                 emit writeData(buildFrame(Frame::TYPE_HANDSHAKE_ACK,
@@ -96,7 +104,6 @@ void ParseWorker::onFrameDecoded(const Frame &frame)
             }
             return;
         }
-
         if (!m_collecting) return;
         if (frame.type != Frame::TYPE_DATA) return;
     }
@@ -118,7 +125,6 @@ void ParseWorker::onRawDataReceived(const QByteArray &data)
     m_lastDataTime = QDateTime::currentMSecsSinceEpoch();
     m_heartbeatMissed = 0;
 
-    // 喂给当前活跃的解码器
     if (auto *raw = qobject_cast<ProtocolDecoder*>(m_decoder))
         raw->feed(data);
     else if (auto *mod = qobject_cast<ModbusDecoder*>(m_decoder))
@@ -192,15 +198,14 @@ bool ParseWorker::parseHandshakePayload(const QByteArray &payload)
 bool ParseWorker::parseDataPayload(const QByteArray &payload, DataPoint &dp, bool modbus)
 {
     if (modbus) {
-        // Modbus: [ByteCount(1)] [Regs(N×2) Big-endian]
         if (payload.size() < 3) return false;
         int byteCount = static_cast<uint8_t>(payload[0]);
         if (payload.size() < 1 + byteCount) return false;
         int chCount = byteCount / 2;
         dp.channels.reserve(chCount);
-        auto d = reinterpret_cast<const uint8_t*>(payload.constData()) + 1; // 跳过 ByteCount
+        auto d = reinterpret_cast<const uint8_t*>(payload.constData()) + 1;
         for (int i = 0; i < chCount; ++i)
-            dp.channels.append(double((d[i*2] << 8) | d[i*2+1])); // 大端序
+            dp.channels.append(double((d[i*2] << 8) | d[i*2+1]));
         return true;
     }
 
@@ -249,18 +254,6 @@ bool ParseWorker::parseDataPayload(const QByteArray &payload, DataPoint &dp, boo
         offset += sz;
     }
     return true;
-}
-
-void ParseWorker::teardown()
-{
-    if (m_modbusMaster) {
-        m_modbusMaster->stop();
-        disconnect(m_modbusMaster, nullptr, this, nullptr);
-    }
-    if (m_heartbeatTimer)
-        m_heartbeatTimer->stop();
-    m_collecting = false;
-    m_dbManager.flush();
 }
 
 DataBuffer *ParseWorker::buffer()

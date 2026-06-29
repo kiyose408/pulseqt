@@ -148,11 +148,11 @@ def main():
     # 初始化串口
     try:
         ser = serial.Serial(args.port, args.baud, timeout=1, bytesize=8, parity='N', stopbits=1)
-        print(f"✅ 串口 {args.port} 已打开 @ {args.baud}")
-        print(f"👂 正在监听从站地址 {args.slave} 的请求... (按 Ctrl+C 退出)")
+        print(f"[OK] {args.port} @ {args.baud}")
+        print(f"Listening slave={args.slave} ... (Ctrl+C to stop)")
         print("-" * 50)
     except Exception as e:
-        print(f"❌ 无法打开串口: {e}")
+        print(f"[ERROR] cannot open port: {e}")
         sys.exit(1)
 
     buffer = bytearray() # 接收缓冲区
@@ -164,36 +164,35 @@ def main():
                 data = ser.read(ser.in_waiting)
                 buffer.extend(data)
                 
-                # 简单的粘包处理：Modbus RTU 帧最小长度为 8 字节
-                # 且帧间隔通常大于 3.5 字符时间 (由串口 timeout 保证)
-                if len(buffer) >= 8:
-                    # 尝试提取完整的帧 (前 6 字节固定头 + 2 字节 CRC)
-                    # 注意：实际解析需根据功能码计算字节数，这里简化处理
-                    expected_length = 5 + buffer[2] + 2 # 2(头)+1(字节计数)+N(数据)+2(CRC)
-                    if len(buffer) >= expected_length:
-                        frame = buffer[:expected_length]
-                        buffer = buffer[expected_length:] # 移除已处理的数据
-                        
-                        # 2. 解析请求
-                        is_valid, msg = parse_request(frame)
-                        if is_valid:
-                            # 3. 生成数据并回复
-                            regs = generate_mock_data()
-                            response = build_response(args.slave, 0x03, regs)
-                            ser.write(response)
-                            
-                            # 打印日志
-                            print(f"📩 收到读取请求 | 回复: CH0={regs[0]:4d} CH1={regs[1]:4d} CH2={regs[2]:4d}")
-                        else:
-                            print(f"❌ 无效请求: {msg}")
+                # ── 处理缓冲区中的完整帧 ──────────────────────────
+                # Modbus RTU 查询帧（功能码 0x03 读保持寄存器）长度固定为 8 字节：
+                #   [Slave(1)] [Func(1)=0x03] [StartAddr(2)] [RegCount(2)] [CRC(2)]
+                # 长度不依赖 payload 内容，不能套用响应帧的 byte-count 公式。
+                while len(buffer) >= 8:
+                    # 取 8 字节作为候选查询帧
+                    frame = bytes(buffer[:8])
+                    del buffer[:8]
+
+                    # 解析请求
+                    is_valid, msg = parse_request(frame)
+                    if is_valid:
+                        # 生成数据并回复
+                        regs = generate_mock_data()
+                        response = build_response(args.slave, 0x03, regs)
+                        ser.write(response)
+
+                        # 打印日志
+                        print(f"[RX] query | reply: CH0={regs[0]:4d} CH1={regs[1]:4d} CH2={regs[2]:4d}")
+                    else:
+                        print(f"[WARN] invalid request: {msg}")
                             
             # 避免 CPU 占用过高
             time.sleep(0.001)
 
     except KeyboardInterrupt:
-        print("\n👋 退出程序")
+        print("\nBye")
     except Exception as e:
-        print(f"\n❌ 运行时错误: {e}")
+        print(f"\n[ERROR] runtime: {e}")
     finally:
         ser.close()
 

@@ -167,12 +167,11 @@ private slots:
             noise[i] = static_cast<char>(rng->bounded(256));
         decoder.feed(noise);
 
-        // 乱码后发两帧：首帧可能被吞/CRC失败 → 状态机自动复位 → 次帧必解码
-        decoder.feed(buildFrame(0x01, QByteArray(5, '\x00')));
-        decoder.feed(buildFrame(0x01, QByteArray(5, '\xFF')));
-        QVERIFY(goodSpy.count() >= 1);  // 至少一帧通过
-        // 最后一帧必为 0xFF payload
-        QCOMPARE(goodSpy.last().at(0).value<Frame>().type, static_cast<uint8_t>(0x01));
+        // 乱码后连续发多帧：最坏情况 Length=0xFF → 吞 255 字节 ≈ 21 帧
+        // 发 30 帧保证状态机靠 CRC 失败自动复位后至少一帧正确解码
+        for (int i = 0; i < 30; ++i)
+            decoder.feed(buildFrame(0x01, QByteArray(1, static_cast<char>(i))));
+        QVERIFY(goodSpy.count() >= 1);
     }
 
     // ────────────────────────────────────────────────────
