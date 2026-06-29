@@ -251,6 +251,18 @@ bool ParseWorker::parseDataPayload(const QByteArray &payload, DataPoint &dp, boo
     return true;
 }
 
+void ParseWorker::teardown()
+{
+    if (m_modbusMaster) {
+        m_modbusMaster->stop();
+        disconnect(m_modbusMaster, nullptr, this, nullptr);
+    }
+    if (m_heartbeatTimer)
+        m_heartbeatTimer->stop();
+    m_collecting = false;
+    m_dbManager.flush();
+}
+
 DataBuffer *ParseWorker::buffer()
 {
     return &m_buffer;

@@ -293,17 +293,24 @@ void MainWindow::teardown()
     }
 
     if (m_parseWorker) {
+        QMetaObject::invokeMethod(m_parseWorker, "setCollecting",
+                                  Qt::BlockingQueuedConnection,
+                                  Q_ARG(bool, false));
+        QMetaObject::invokeMethod(m_parseWorker, "teardown",
+                                  Qt::BlockingQueuedConnection);
         QMetaObject::invokeMethod(m_parseWorker, "resetChannelConfig",
                                   Qt::BlockingQueuedConnection);
     }
 
-    if (m_commThread) {
+    if (m_commThread && m_commThread->isRunning()) {
         m_commThread->quit();
-        m_commThread->wait();
+        if (!m_commThread->wait(3000))
+            m_commThread->terminate();
     }
-    if (m_parseThread) {
+    if (m_parseThread && m_parseThread->isRunning()) {
         m_parseThread->quit();
-        m_parseThread->wait();
+        if (!m_parseThread->wait(3000))
+            m_parseThread->terminate();
     }
 
     // 线程已停，安全直接删除（通道已关闭）
