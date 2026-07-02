@@ -92,7 +92,7 @@ def crc16_modbus(data: bytes) -> int:
 
 # ── 合法帧构建 ────────────────────────────────────────
 
-def build_custom_frame(payload: bytes, frame_type: int = 0x01) -> bytes:
+def build_custom_frame(payload: bytes, frame_type: int = 0xE1) -> bytes:
     """构建自定义协议帧: [A55A][len][type][payload][CRC16-CCITT]"""
     raw = bytearray([0xA5, 0x5A])
     raw.append(len(payload) & 0xFF)

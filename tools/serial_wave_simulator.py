@@ -95,7 +95,7 @@ def crc16_ccitt(data: bytes) -> int:
 
 
 def make_data_frame(ch0: int, ch1: int, ch2: int) -> bytes:
-    """构建一帧完整数据帧（type=0x01, 3 通道 uint16 小端序）"""
+    """构建一帧完整数据帧（type=0xE1, 3 通道 uint16 小端序）"""
     payload = struct.pack('<HHH', ch0, ch1, ch2)
     raw = b'\xA5\x5A'                    # Header
     raw += struct.pack('B', len(payload)) # Length
@@ -107,7 +107,7 @@ def make_data_frame(ch0: int, ch1: int, ch2: int) -> bytes:
 
 
 def make_heartbeat_resp() -> bytes:
-    """构建心跳应答帧（type=0x03, payload 空）"""
+    """构建心跳应答帧（type=0xE3, payload 空）"""
     raw = b'\xA5\x5A\x00\x03'
     crc = crc16_ccitt(raw)
     return raw + struct.pack('<H', crc)
