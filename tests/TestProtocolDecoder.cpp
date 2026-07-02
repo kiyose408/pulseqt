@@ -55,13 +55,13 @@ private slots:
         QSignalSpy errSpy(&decoder, &ProtocolDecoder::crcError);
 
         QByteArray payload(6, '\x01');
-        decoder.feed(buildFrame(0x01, payload));
+        decoder.feed(buildFrame(0xE1, payload));
 
         QCOMPARE(spy.count(), 1);
         QCOMPARE(errSpy.count(), 0);
 
         Frame frame = spy.at(0).at(0).value<Frame>();
-        QCOMPARE(frame.type, static_cast<uint8_t>(0x01));
+        QCOMPARE(frame.type, Frame::TYPE_DATA);
         QCOMPARE(frame.payload, payload);
     }
 
@@ -75,7 +75,7 @@ private slots:
 
         QByteArray p1(4, '\xAA');
         QByteArray p2(3, '\xBB');
-        QByteArray combined = buildFrame(0x01, p1) + buildFrame(0x03, p2);
+        QByteArray combined = buildFrame(0xE1, p1) + buildFrame(0xE3, p2);
         decoder.feed(combined);
 
         QCOMPARE(spy.count(), 2);
@@ -92,7 +92,7 @@ private slots:
         QSignalSpy spy(&decoder, &ProtocolDecoder::frameDecoded);
 
         QByteArray payload(8, '\xCC');
-        QByteArray full = buildFrame(0x01, payload);
+        QByteArray full = buildFrame(0xE1, payload);
 
         // 在 Length + Type + 2 字节 payload 处切开（状态机在 WAIT_PAYLOAD 中途暂停）
         int splitAt = 6;   // 2(header) + 1(len) + 1(type) + 2(payload)
@@ -117,7 +117,7 @@ private slots:
         QSignalSpy goodSpy(&decoder, &ProtocolDecoder::frameDecoded);
         QSignalSpy badSpy(&decoder, &ProtocolDecoder::crcError);
 
-        QByteArray badFrame = buildFrame(0x01, QByteArray(4, '\xDD'));
+        QByteArray badFrame = buildFrame(0xE1, QByteArray(4, '\xDD'));
         // 翻转 CRC 低字节最低位
         badFrame[badFrame.size() - 2] = badFrame[badFrame.size() - 2] ^ 0x01;
         decoder.feed(badFrame);
@@ -126,7 +126,7 @@ private slots:
         QCOMPARE(badSpy.count(), 1);
 
         // 状态机应恢复：再发一帧合法帧
-        decoder.feed(buildFrame(0x01, QByteArray(3, '\xEE')));
+        decoder.feed(buildFrame(0xE1, QByteArray(3, '\xEE')));
         QCOMPARE(goodSpy.count(), 1);
     }
 
@@ -146,7 +146,7 @@ private slots:
         payload.append(static_cast<char>(0x5A));
         payload.append('\xFF');
 
-        decoder.feed(buildFrame(0x01, payload));
+        decoder.feed(buildFrame(0xE1, payload));
 
         QCOMPARE(spy.count(), 1);
         QCOMPARE(spy.at(0).at(0).value<Frame>().payload, payload);
@@ -170,7 +170,7 @@ private slots:
         // 乱码后连续发多帧：最坏情况 Length=0xFF → 吞 255 字节 ≈ 21 帧
         // 发 30 帧保证状态机靠 CRC 失败自动复位后至少一帧正确解码
         for (int i = 0; i < 30; ++i)
-            decoder.feed(buildFrame(0x01, QByteArray(1, static_cast<char>(i))));
+            decoder.feed(buildFrame(0xE1, QByteArray(1, static_cast<char>(i))));
         QVERIFY(goodSpy.count() >= 1);
     }
 
@@ -182,31 +182,31 @@ private slots:
         ProtocolDecoder decoder;
         QSignalSpy spy(&decoder, &ProtocolDecoder::frameDecoded);
 
-        QByteArray full = buildFrame(0x01, QByteArray(5, '\x77'));
+        QByteArray full = buildFrame(0xE1, QByteArray(5, '\x77'));
         QByteArray half = full.left(5);     // 半帧
         decoder.feed(half);
         QCOMPARE(spy.count(), 0);
 
         decoder.reset();
 
-        decoder.feed(buildFrame(0x03, QByteArray(3, '\x88')));
+        decoder.feed(buildFrame(0xE3, QByteArray(3, '\x88')));
         QCOMPARE(spy.count(), 1);
-        QCOMPARE(spy.at(0).at(0).value<Frame>().type, static_cast<uint8_t>(0x03));
+        QCOMPARE(spy.at(0).at(0).value<Frame>().type, Frame::TYPE_ACK);
     }
 
     // ────────────────────────────────────────────────────
-    // ⑧ 空 Payload 帧：type=0x02 心跳帧，payload 为空
+    // ⑧ 空 Payload 帧：type=0xE2 心跳帧，payload 为空
     // ────────────────────────────────────────────────────
     void emptyPayload()
     {
         ProtocolDecoder decoder;
         QSignalSpy spy(&decoder, &ProtocolDecoder::frameDecoded);
 
-        decoder.feed(buildFrame(0x02, QByteArray()));
+        decoder.feed(buildFrame(0xE2, QByteArray()));
 
         QCOMPARE(spy.count(), 1);
         Frame frame = spy.at(0).at(0).value<Frame>();
-        QCOMPARE(frame.type, static_cast<uint8_t>(0x02));
+        QCOMPARE(frame.type, Frame::TYPE_HEARTBEAT);
         QVERIFY(frame.payload.isEmpty());
     }
 };

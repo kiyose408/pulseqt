@@ -130,7 +130,7 @@ ProtocolDecoder decoder;
 QSignalSpy spy(&decoder, &ProtocolDecoder::frameDecoded);
 QSignalSpy errSpy(&decoder, &ProtocolDecoder::crcError);
 
-decoder.feed(buildFrame(0x01, payload));
+decoder.feed(buildFrame(Frame::TYPE_DATA, payload));
 
 QCOMPARE(spy.count(), 1);                          // 信号触发次数
 QCOMPARE(errSpy.count(), 0);                       // 错误信号未触发

@@ -8,7 +8,7 @@
 
 帧格式（与 PulseQt 自定义协议一致）：
   Header(2B) + Length(1B) + Type(1B) + Payload(6B) + CRC16(2B)
-  0xA5 0x5A  +   0x06    +   0x01   + 3×uint16LE + CCITT
+  0xA5 0x5A  +   0x06    +   0xE1   + 3×uint16LE + CCITT
 
 需要 pyserial:  pip install pyserial
 
@@ -209,7 +209,7 @@ def main():
             frame_count += 1
 
             # ── 2. 检查是否有心跳请求 ──
-            #    非阻塞读：查收 PulseQt 发来的心跳帧(type=0x02)
+            #    非阻塞读：查收 PulseQt 发来的心跳帧(type=0xE2)
             #    仿真器持续发数据帧时 PulseQt 不会发心跳，仅在闲置时触发
             rx = ser.read(1024)
             if rx:

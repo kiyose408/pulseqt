@@ -31,9 +31,9 @@ private slots:
 
     void frameTypeConstants()
     {
-        QCOMPARE(Frame::TYPE_DATA,      static_cast<uint8_t>(0x01));
-        QCOMPARE(Frame::TYPE_HEARTBEAT, static_cast<uint8_t>(0x02));
-        QCOMPARE(Frame::TYPE_ACK,       static_cast<uint8_t>(0x03));
+        QCOMPARE(Frame::TYPE_DATA,      static_cast<uint8_t>(0xE1));
+        QCOMPARE(Frame::TYPE_HEARTBEAT, static_cast<uint8_t>(0xE2));
+        QCOMPARE(Frame::TYPE_ACK,       static_cast<uint8_t>(0xE3));
         QCOMPARE(Frame::TYPE_ERROR,     static_cast<uint8_t>(0xFF));
     }
 };
