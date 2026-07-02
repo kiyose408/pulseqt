@@ -208,15 +208,25 @@ class TransportBackend:
 
 class TcpBackend(TransportBackend):
     def __init__(self, host: str, port: int):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._server.bind((host, port))
+        self._server.listen(1)
+        self._server.settimeout(30)
+        print(f"[Fuzzer] TCP server listening on {host}:{port} ...")
+        conn, addr = self._server.accept()
+        print(f"[Fuzzer] accepted connection from {addr}")
+        self.sock = conn
         self.sock.settimeout(3)
-        self.sock.connect((host, port))
 
     def send(self, data: bytes):
         self.sock.sendall(data)
 
     def close(self):
-        self.sock.close()
+        try: self.sock.close()
+        except: pass
+        try: self._server.close()
+        except: pass
 
 
 class SerialBackend(TransportBackend):
@@ -282,6 +292,7 @@ class ProtocolFuzzer:
         return None
 
     def run(self):
+        print('[Fuzzer] running continuously (Ctrl+C to stop)')
         strategies = ["valid", "random", "bit_flip", "length_tamper",
                        "crc_corrupt", "edge", "fragment"]
         weights   = [10,      30,      15,        10,             15,         5,      15]
@@ -293,7 +304,8 @@ class ProtocolFuzzer:
         print("-" * 60)
 
         t0 = time.time()
-        for i in range(self.count):
+        i = 0
+        while True:
             strategy = random.choices(strategies, weights=weights, k=1)[0]
             try:
                 data = self._gen_mutant(strategy)
@@ -315,19 +327,14 @@ class ProtocolFuzzer:
                     print(f"[WARN] transport error (#{self.stats['errors']}): {e}")
 
             # 进度
-            if (i + 1) % max(1, self.count // 10) == 0:
+            i += 1
+            if i % 500 == 0:
                 elapsed = time.time() - t0
-                print(f"  [{i+1:5d}/{self.count}] "
-                      f"{(i+1)/max(elapsed,0.001):.0f} fuzz/sec")
+                print(f"  [{i:6d}] {(i)/max(elapsed,0.001):.0f} fuzz/sec")
 
             time.sleep(self.interval)
 
-        elapsed = time.time() - t0
-        print("-" * 60)
-        print(f"[Fuzzer] DONE: {self.count} test vectors in {elapsed:.1f}s")
-        for s, n in sorted(self.stats["by_strategy"].items()):
-            print(f"  {s:16s}: {n:5d}")
-        print(f"  errors         : {self.stats['errors']:5d}")
+        pass
 
 
 # ── CLI ───────────────────────────────────────────────
