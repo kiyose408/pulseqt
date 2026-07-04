@@ -203,7 +203,12 @@ class TransportBackend:
         raise NotImplementedError
 
     def close(self):
-        pass
+        elapsed = time.time() - t0
+        print("-" * 60)
+        print(f"[Fuzzer] DONE: {self.count} test vectors in {elapsed:.1f}s")
+        for s, n in sorted(self.stats["by_strategy"].items()):
+            print(f"  {s:16s}: {n:5d}")
+        print(f"  errors         : {self.stats['errors']:5d}")
 
 
 class TcpBackend(TransportBackend):
@@ -292,7 +297,6 @@ class ProtocolFuzzer:
         return None
 
     def run(self):
-        print('[Fuzzer] running continuously (Ctrl+C to stop)')
         strategies = ["valid", "random", "bit_flip", "length_tamper",
                        "crc_corrupt", "edge", "fragment"]
         weights   = [10,      30,      15,        10,             15,         5,      15]
@@ -304,8 +308,7 @@ class ProtocolFuzzer:
         print("-" * 60)
 
         t0 = time.time()
-        i = 0
-        while True:
+        for i in range(self.count):
             strategy = random.choices(strategies, weights=weights, k=1)[0]
             try:
                 data = self._gen_mutant(strategy)
@@ -327,14 +330,19 @@ class ProtocolFuzzer:
                     print(f"[WARN] transport error (#{self.stats['errors']}): {e}")
 
             # 进度
-            i += 1
-            if i % 500 == 0:
+            if (i + 1) % max(1, self.count // 10) == 0:
                 elapsed = time.time() - t0
-                print(f"  [{i:6d}] {(i)/max(elapsed,0.001):.0f} fuzz/sec")
+                print(f"  [{i+1:5d}/{self.count}] "
+                      f"{(i+1)/max(elapsed,0.001):.0f} fuzz/sec")
 
             time.sleep(self.interval)
 
-        pass
+        elapsed = time.time() - t0
+        print("-" * 60)
+        print(f"[Fuzzer] DONE: {self.count} test vectors in {elapsed:.1f}s")
+        for s, n in sorted(self.stats["by_strategy"].items()):
+            print(f"  {s:16s}: {n:5d}")
+        print(f"  errors         : {self.stats['errors']:5d}")
 
 
 # ── CLI ───────────────────────────────────────────────
