@@ -212,13 +212,13 @@ void MainWindow::onConnect()
         m_parseThread->start();
     }
 
-    // ── 每次连接都切换协议（ParseWorker 复用）─────
-    if (cfg.value("protocol", "自定义").toString() == "Modbus RTU")
+    // ── 每次连接都切换协议 ─────
+    {
+        QString protoArg = (cfg.value("protocol", "自定义").toString() == "Modbus RTU")
+                            ? QString("modbus") : QString("raw");
         QMetaObject::invokeMethod(m_parseWorker, "setProtocol", Qt::QueuedConnection,
-                                  Q_ARG(QString, QString("modbus")));
-    else
-        QMetaObject::invokeMethod(m_parseWorker, "setProtocol", Qt::QueuedConnection,
-                                  Q_ARG(QString, QString("raw")));
+                                  Q_ARG(QString, protoArg));
+    }
 
     // ── 在通信线程内创建通道 → 设置 → 连接 ────────────
     //    通道在通信线程创建，避免 setParent 跨线程警告
