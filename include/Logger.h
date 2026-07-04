@@ -32,6 +32,7 @@
 #define LOGGER_H
 
 #include <QFile>
+#include <QMutex>
 #include <QString>
 #include <QtGlobal>
 #include <functional>
@@ -72,6 +73,7 @@ private:
     void rotateIfNeeded();                    // 检查是否需要轮转
 
     QFile          m_file;
+    QMutex         m_mutex;     // 多线程写保护
     qint64         m_maxFileSize   = 10 * 1024 * 1024;  // 10 MB
     int            m_rotationCount = 5;                 // 保留历史文件数
     QtMsgType      m_minLevel      = QtDebugMsg;        // 最低输出级别

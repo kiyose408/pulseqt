@@ -4,6 +4,7 @@
 
 #include "Logger.h"
 #include <QDateTime>
+#include <QMutexLocker>
 #include <QTextStream>
 
 //==============================================================================
@@ -128,6 +129,7 @@ void Logger::messageHandler(QtMsgType type,
 
 void Logger::writeLine(const QString &line)
 {
+    QMutexLocker lock(&m_mutex);
     if (!m_file.isOpen()) return;
 
     QTextStream stream(&m_file);
@@ -141,6 +143,7 @@ void Logger::writeLine(const QString &line)
 
 void Logger::rotateIfNeeded()
 {
+    QMutexLocker lock(&m_mutex);
     if (m_file.size() <= m_maxFileSize)
         return;   // 未超阈值，不轮转
 

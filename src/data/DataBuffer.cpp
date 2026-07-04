@@ -31,13 +31,13 @@ DataBuffer::DataBuffer(int maxSize, QObject *parent)
 
 void DataBuffer::push(const DataPoint &point)
 {
-    QMutexLocker locker(&m_mutex);
-
-    m_ring[m_head] = point;
-    m_head = (m_head + 1) % m_maxSize;
-    if (m_count < m_maxSize)
-        m_count++;
-
+    {
+        QMutexLocker locker(&m_mutex);
+        m_ring[m_head] = point;
+        m_head = (m_head + 1) % m_maxSize;
+        if (m_count < m_maxSize)
+            m_count++;
+    }
     emit bufferUpdated(1);
 }
 
