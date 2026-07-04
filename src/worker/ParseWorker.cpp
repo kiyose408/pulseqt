@@ -22,6 +22,7 @@ ParseWorker::ParseWorker(const QString &dbPath, QObject *parent)
 
 void ParseWorker::setProtocol(const QString &protocol)
 {
+    qDebug() << "[setProtocol]" << protocol;
     if (m_decoder) {
         disconnect(m_decoder, nullptr, this, nullptr);
         m_decoder = nullptr;
