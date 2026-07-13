@@ -49,6 +49,10 @@ qt_add_executable(PulseQt
     include/Frame.h
     include/ProtocolDecoder.h
     src/protocol/ProtocolDecoder.cpp
+    include/ModbusDecoder.h
+    src/protocol/ModbusDecoder.cpp
+    include/ModbusMaster.h
+    src/protocol/ModbusMaster.cpp
     include/DataPoint.h
     include/DataBuffer.h
     src/data/DataBuffer.cpp
@@ -81,6 +85,8 @@ enable_testing()
 # 头文件也需列入源列表，让 AUTOMOC 生成信号实现
 add_library(PulseQtTestLib STATIC
     src/protocol/ProtocolDecoder.cpp
+    src/protocol/ModbusDecoder.cpp
+    src/protocol/ModbusMaster.cpp
     src/data/DataBuffer.cpp
     src/data/DatabaseManager.cpp
     src/communication/ChannelManager.cpp
@@ -88,6 +94,9 @@ add_library(PulseQtTestLib STATIC
     src/communication/ChannelRegistry.cpp
     src/worker/ParseWorker.cpp
     include/ProtocolDecoder.h
+    include/ModbusDecoder.h
+    include/ModbusMaster.h
+    include/ModbusCRC.h
     include/Frame.h
     include/DataBuffer.h
     include/DataPoint.h
@@ -106,7 +115,7 @@ qt_add_executable(TestFrame
     tests/TestFrame.cpp
 )
 target_include_directories(TestFrame PRIVATE include)
-target_include_directories(TestFrame PRIVATE ${CMAKE_BINARY_DIR}/TestFrame_autogen/include_Debug)
+target_include_directories(TestFrame PRIVATE ${CMAKE_BINARY_DIR}/TestFrame_autogen/include_$<CONFIG>)
 target_link_libraries(TestFrame PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME Frame COMMAND TestFrame)
 
@@ -114,7 +123,7 @@ qt_add_executable(TestProtocolDecoder
     tests/TestProtocolDecoder.cpp
 )
 target_include_directories(TestProtocolDecoder PRIVATE include)
-target_include_directories(TestProtocolDecoder PRIVATE ${CMAKE_BINARY_DIR}/TestProtocolDecoder_autogen/include_Debug)
+target_include_directories(TestProtocolDecoder PRIVATE ${CMAKE_BINARY_DIR}/TestProtocolDecoder_autogen/include_$<CONFIG>)
 target_link_libraries(TestProtocolDecoder PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME ProtocolDecoder COMMAND TestProtocolDecoder)
 
@@ -123,7 +132,7 @@ qt_add_executable(TestDataBuffer
     tests/TestDataBuffer.cpp
 )
 target_include_directories(TestDataBuffer PRIVATE include)
-target_include_directories(TestDataBuffer PRIVATE ${CMAKE_BINARY_DIR}/TestDataBuffer_autogen/include_Debug)
+target_include_directories(TestDataBuffer PRIVATE ${CMAKE_BINARY_DIR}/TestDataBuffer_autogen/include_$<CONFIG>)
 target_link_libraries(TestDataBuffer PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME DataBuffer COMMAND TestDataBuffer)
 
@@ -132,7 +141,7 @@ qt_add_executable(TestIntegration
     tests/TestIntegration.cpp
 )
 target_include_directories(TestIntegration PRIVATE include)
-target_include_directories(TestIntegration PRIVATE ${CMAKE_BINARY_DIR}/TestIntegration_autogen/include_Debug)
+target_include_directories(TestIntegration PRIVATE ${CMAKE_BINARY_DIR}/TestIntegration_autogen/include_$<CONFIG>)
 target_link_libraries(TestIntegration PRIVATE PulseQtTestLib Qt6::Test Qt6::Network)
 target_compile_definitions(TestIntegration PRIVATE
     PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
@@ -144,7 +153,7 @@ qt_add_executable(TestDatabaseManager
     tests/TestDatabaseManager.cpp
 )
 target_include_directories(TestDatabaseManager PRIVATE include)
-target_include_directories(TestDatabaseManager PRIVATE ${CMAKE_BINARY_DIR}/TestDatabaseManager_autogen/include_Debug)
+target_include_directories(TestDatabaseManager PRIVATE ${CMAKE_BINARY_DIR}/TestDatabaseManager_autogen/include_$<CONFIG>)
 target_link_libraries(TestDatabaseManager PRIVATE PulseQtTestLib Qt6::Test Qt6::Sql)
 add_test(NAME DatabaseManager COMMAND TestDatabaseManager)
 
@@ -153,7 +162,7 @@ qt_add_executable(TestParseWorker
     tests/TestParseWorker.cpp
 )
 target_include_directories(TestParseWorker PRIVATE include)
-target_include_directories(TestParseWorker PRIVATE ${CMAKE_BINARY_DIR}/TestParseWorker_autogen/include_Debug)
+target_include_directories(TestParseWorker PRIVATE ${CMAKE_BINARY_DIR}/TestParseWorker_autogen/include_$<CONFIG>)
 target_link_libraries(TestParseWorker PRIVATE PulseQtTestLib Qt6::Test Qt6::Sql)
 add_test(NAME ParseWorker COMMAND TestParseWorker)
 
@@ -162,7 +171,7 @@ qt_add_executable(TestChannelManager
     tests/TestChannelManager.cpp
 )
 target_include_directories(TestChannelManager PRIVATE include)
-target_include_directories(TestChannelManager PRIVATE ${CMAKE_BINARY_DIR}/TestChannelManager_autogen/include_Debug)
+target_include_directories(TestChannelManager PRIVATE ${CMAKE_BINARY_DIR}/TestChannelManager_autogen/include_$<CONFIG>)
 target_link_libraries(TestChannelManager PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME ChannelManager COMMAND TestChannelManager)
 
@@ -171,7 +180,7 @@ qt_add_executable(TestChannelRegistry
     tests/TestChannelRegistry.cpp
 )
 target_include_directories(TestChannelRegistry PRIVATE include)
-target_include_directories(TestChannelRegistry PRIVATE ${CMAKE_BINARY_DIR}/TestChannelRegistry_autogen/include_Debug)
+target_include_directories(TestChannelRegistry PRIVATE ${CMAKE_BINARY_DIR}/TestChannelRegistry_autogen/include_$<CONFIG>)
 target_link_libraries(TestChannelRegistry PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME ChannelRegistry COMMAND TestChannelRegistry)
 

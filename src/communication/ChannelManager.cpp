@@ -180,11 +180,11 @@ void ChannelManager::onReadyRead(const QByteArray &data)
 
 void ChannelManager::onReconnectTimer()
 {
-    // 重连尝试次数 +1
+    if (m_userDisconnect) return;  // 用户已主动断开 → 放弃重连
+
     m_reconnectAttempt++;
     qInfo() << "ChannelManager: reconnecting... attempt" << m_reconnectAttempt;
 
-    // 重新打开通道
     m_channel->open();
 }
 

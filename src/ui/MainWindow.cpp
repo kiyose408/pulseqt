@@ -168,7 +168,7 @@ void MainWindow::onConnect()
         m_commThread     = new QThread(this);
         m_parseThread    = new QThread(this);
         m_channelManager = new ChannelManager();
-        m_parseWorker    = new ParseWorker();
+        m_parseWorker = new ParseWorker("data.db");
 
         m_channelManager->moveToThread(m_commThread);
         m_parseWorker->moveToThread(m_parseThread);
@@ -180,7 +180,10 @@ void MainWindow::onConnect()
                 m_channelManager, &ChannelManager::writeData,
                 Qt::QueuedConnection);
         connect(m_parseWorker, &ParseWorker::dataPointReady,
-                this, [this]() {}, Qt::QueuedConnection);
+                this, [this]() {
+            // 数据到达 → 触发曲线和表格即时刷新
+            if (m_chart) m_chart->update();
+        }, Qt::QueuedConnection);
         connect(m_channelManager, &ChannelManager::connected,
                 this, [this]() { m_statusLabel->setText("已连接"); },
                 Qt::QueuedConnection);
@@ -207,6 +210,14 @@ void MainWindow::onConnect()
 
         m_commThread->start();
         m_parseThread->start();
+    }
+
+    // ── 每次连接都切换协议 ─────
+    {
+        QString protoArg = (cfg.value("protocol", "自定义").toString() == "Modbus RTU")
+                            ? QString("modbus") : QString("raw");
+        QMetaObject::invokeMethod(m_parseWorker, "setProtocol", Qt::QueuedConnection,
+                                  Q_ARG(QString, protoArg));
     }
 
     // ── 在通信线程内创建通道 → 设置 → 连接 ────────────
@@ -286,22 +297,28 @@ void MainWindow::teardown()
     }
 
     if (m_parseWorker) {
+        QMetaObject::invokeMethod(m_parseWorker, "setCollecting",
+                                  Qt::BlockingQueuedConnection,
+                                  Q_ARG(bool, false));
+        QMetaObject::invokeMethod(m_parseWorker, "teardown",
+                                  Qt::BlockingQueuedConnection);
         QMetaObject::invokeMethod(m_parseWorker, "resetChannelConfig",
                                   Qt::BlockingQueuedConnection);
     }
 
-    if (m_commThread) {
+    // 调度在所属线程安全析构（避免 socket 跨线程清理）
+    if (m_channelManager) m_channelManager->deleteLater();
+    if (m_parseWorker)    m_parseWorker->deleteLater();
+
+    if (m_commThread && m_commThread->isRunning()) {
         m_commThread->quit();
-        m_commThread->wait();
+        m_commThread->wait(5000);
     }
-    if (m_parseThread) {
+    if (m_parseThread && m_parseThread->isRunning()) {
         m_parseThread->quit();
-        m_parseThread->wait();
+        m_parseThread->wait(5000);
     }
 
-    // 线程已停，安全直接删除（通道已关闭）
-    delete m_channelManager; m_channelManager = nullptr;
-    delete m_parseWorker;    m_parseWorker    = nullptr;
     delete m_commThread;     m_commThread     = nullptr;
     delete m_parseThread;    m_parseThread    = nullptr;
 }

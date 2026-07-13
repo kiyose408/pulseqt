@@ -25,11 +25,11 @@ struct Frame
     QByteArray  payload;             // 数据负载（原始字节）
 
     // ── 帧类型常量 ────────────────────────────────────────────────
-    static constexpr uint8_t TYPE_DATA           = 0x01;  // 数据帧
-    static constexpr uint8_t TYPE_HEARTBEAT      = 0x02;  // 心跳帧（保活）
-    static constexpr uint8_t TYPE_ACK            = 0x03;  // 心跳应答
-    static constexpr uint8_t TYPE_HANDSHAKE_REQ  = 0x04;  // 握手请求（下位机→上位机：通道配置）
-    static constexpr uint8_t TYPE_HANDSHAKE_ACK  = 0x05;  // 握手应答（上位机→下位机：0x00=OK）
+    static constexpr uint8_t TYPE_DATA           = 0xE1;  // 数据帧
+    static constexpr uint8_t TYPE_HEARTBEAT      = 0xE2;  // 心跳帧（保活）
+    static constexpr uint8_t TYPE_ACK            = 0xE3;  // 心跳应答
+    static constexpr uint8_t TYPE_HANDSHAKE_REQ  = 0xE4;  // 握手请求（下位机→上位机：通道配置）
+    static constexpr uint8_t TYPE_HANDSHAKE_ACK  = 0xE5;  // 握手应答（上位机→下位机：0x00=OK）
     static constexpr uint8_t TYPE_ERROR          = 0xFF;  // 错误帧
 
     // ── 通道数据类型编码（握手帧 payload 中使用）────────────────

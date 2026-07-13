@@ -61,7 +61,7 @@ def make_frame(ch0, ch1, ch2):
     payload = struct.pack('<HHH', ch0, ch1, ch2)
     raw = b'\xA5\x5A'
     raw += bytes([len(payload)])
-    raw += b'\x01'
+    raw += b'\xe1'
     raw += payload
     crc = crc16_ccitt(raw)
     raw += struct.pack('<H', crc)
@@ -72,7 +72,7 @@ def make_handshake_frame():
     payload = bytes([3, 0x02, 0x02, 0x02])  # 3通道, 全部uint16
     raw = b'\xA5\x5A'
     raw += bytes([len(payload)])
-    raw += b'\x04'  # TYPE_HANDSHAKE_REQ
+    raw += b'\xe4'  # TYPE_HANDSHAKE_REQ
     raw += payload
     crc = crc16_ccitt(raw)
     raw += struct.pack('<H', crc)

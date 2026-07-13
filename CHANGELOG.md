@@ -4,7 +4,7 @@
 
 ### 🔌 协议层：握手帧 (T018 完成)
 
-- 实现握手请求 (0x04) / 握手应答 (0x05) — 下位机连接后主动声明通道配置
+- 实现握手请求 (0xE4) / 握手应答 (0xE5) — 下位机连接后主动声明通道配置
 - `Frame::ChannelDataType` 枚举支持 uint8 / uint16 / int16 / float 四种通道类型
 - `ParseWorker::parseHandshakePayload()`：校验 1~16 通道 + 类型有效性，握手失败回复 0x01
 - `ParseWorker::parseDataPayload()`：按协商类型逐通道解析，`m_channelCount==0` 时回退旧行为

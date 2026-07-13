@@ -65,7 +65,7 @@ def make_frame(ch0, ch1, ch2):
     # 帧头 + 长度 + 类型 + Payload
     raw = b'\xA5\x5A'
     raw += bytes([len(payload)])   # Length = 6
-    raw += b'\x01'                 # Type = 数据帧
+    raw += b'\xe1'                 # Type = 数据帧
     raw += payload
 
     # CRC16-CCITT 校验
