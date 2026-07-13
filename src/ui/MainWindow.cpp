@@ -306,15 +306,14 @@ void MainWindow::teardown()
                                   Qt::BlockingQueuedConnection);
     }
 
+    // 确保通信线程先停（避免 socket 跨线程析构）
     if (m_commThread && m_commThread->isRunning()) {
         m_commThread->quit();
-        if (!m_commThread->wait(3000))
-            m_commThread->terminate();
+        m_commThread->wait(5000);
     }
     if (m_parseThread && m_parseThread->isRunning()) {
         m_parseThread->quit();
-        if (!m_parseThread->wait(3000))
-            m_parseThread->terminate();
+        m_parseThread->wait(5000);
     }
 
     // 线程已停，安全直接删除（通道已关闭）
