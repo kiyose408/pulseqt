@@ -1,5 +1,35 @@
 # Changelog
 
+## v1.2.0 (2026-07-14)
+
+### Modbus RTU 主从模式 (T027)
+- ModbusMaster: QTimer 10ms 定时轮询，构建 0x03 读保持寄存器查询帧
+- ModbusDecoder: 滑动窗口 CRC 扫描，支持多帧拼接、地址/功能码校验
+- ParseWorker::setProtocol() 运行时动态切换
+- 串口通道注册表加协议 combo 选择
+- Modbus 串口/TCP 双从站模拟器
+
+### 协议帧 Fuzzing (T028)
+- 7 种变异策略，双传输后端，双协议支持
+- CRC 日志限流防洪水
+
+### 帧类型重构 (Breaking)
+- 自定义协议帧类型迁移至 0xE1-0xE5，彻底隔离工业协议
+- 全项目文档+测试+模拟器同步更新
+
+### 代码审查修复
+- Logger QMutex 多线程写保护
+- DataBuffer emit 移出锁外防死锁
+- ChannelRegistry Meyer Singleton
+
+### Bug 修复
+- QNativeSocketEngine 跨线程崩溃 (deleteLater)
+- TCP 重连防重入 (onReconnectTimer)
+- 关闭窗口死锁修复
+- ProtocolDecoder CRC 日志限流
+
+---
+
 ## v1.1.1 (2026-06-21)
 
 ### 🔌 协议层：握手帧 (T018 完成)
