@@ -306,7 +306,10 @@ void MainWindow::teardown()
                                   Qt::BlockingQueuedConnection);
     }
 
-    // 确保通信线程先停（避免 socket 跨线程析构）
+    // 调度在所属线程安全析构（避免 socket 跨线程清理）
+    if (m_channelManager) m_channelManager->deleteLater();
+    if (m_parseWorker)    m_parseWorker->deleteLater();
+
     if (m_commThread && m_commThread->isRunning()) {
         m_commThread->quit();
         m_commThread->wait(5000);
@@ -316,9 +319,6 @@ void MainWindow::teardown()
         m_parseThread->wait(5000);
     }
 
-    // 线程已停，安全直接删除（通道已关闭）
-    delete m_channelManager; m_channelManager = nullptr;
-    delete m_parseWorker;    m_parseWorker    = nullptr;
     delete m_commThread;     m_commThread     = nullptr;
     delete m_parseThread;    m_parseThread    = nullptr;
 }
