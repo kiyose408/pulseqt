@@ -56,6 +56,9 @@ qt_add_executable(PulseQt
     include/DataPoint.h
     include/DataBuffer.h
     src/data/DataBuffer.cpp
+    include/IFilter.h
+    include/FilterPipeline.h
+    src/data/FilterPipeline.cpp
     include/DatabaseManager.h
     src/data/DatabaseManager.cpp
     include/DataTableModel.h
@@ -88,6 +91,7 @@ add_library(PulseQtTestLib STATIC
     src/protocol/ModbusDecoder.cpp
     src/protocol/ModbusMaster.cpp
     src/data/DataBuffer.cpp
+    src/data/FilterPipeline.cpp
     src/data/DatabaseManager.cpp
     src/communication/ChannelManager.cpp
     src/communication/TcpChannel.cpp
@@ -100,6 +104,8 @@ add_library(PulseQtTestLib STATIC
     include/Frame.h
     include/DataBuffer.h
     include/DataPoint.h
+    include/IFilter.h
+    include/FilterPipeline.h
     include/DatabaseManager.h
     include/IChannel.h
     include/ChannelManager.h
