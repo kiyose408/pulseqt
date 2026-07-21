@@ -45,6 +45,9 @@ void ModbusDecoder::feed(const QByteArray &data)
 
     static constexpr int MAX_BUFFER  = 2048;
     static constexpr int TRIM_TARGET = 1024;
-    if (m_buffer.size() > MAX_BUFFER)
+    if (m_buffer.size() > MAX_BUFFER) {
+        qWarning() << "ModbusDecoder: buffer exceeded" << MAX_BUFFER
+                   << "bytes, trimming to" << TRIM_TARGET << "bytes — possible data loss";
         m_buffer.remove(0, m_buffer.size() - TRIM_TARGET);
+    }
 }

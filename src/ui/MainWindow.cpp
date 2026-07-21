@@ -22,6 +22,11 @@ MainWindow::MainWindow(QWidget *parent)
     setupStatusBar();
 }
 
+MainWindow::~MainWindow()
+{
+    teardown();
+}
+
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     teardown();
@@ -307,8 +312,8 @@ void MainWindow::teardown()
     }
 
     // 调度在所属线程安全析构（避免 socket 跨线程清理）
-    if (m_channelManager) m_channelManager->deleteLater();
-    if (m_parseWorker)    m_parseWorker->deleteLater();
+    if (m_channelManager) { m_channelManager->deleteLater(); m_channelManager = nullptr; }
+    if (m_parseWorker)    { m_parseWorker->deleteLater();    m_parseWorker    = nullptr; }
 
     if (m_commThread && m_commThread->isRunning()) {
         m_commThread->quit();

@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <QDateTime>
 #include <QElapsedTimer>
-#include <QFile>
 
 const QColor RealTimeChart::CH_COLORS[16] = {
     QColor(0xE6, 0x69, 0x4C),  // 0 橙
@@ -186,11 +185,8 @@ void RealTimeChart::paintEvent(QPaintEvent *)
 #ifndef QT_NO_DEBUG
     static int fc = 0;
     if (++fc % 100 == 0) {
-        QString line = QString("paint Y:%1ms Bg:%2ms Curve:%3ms total:%4ms\n")
-            .arg(tY).arg(tBg-tY).arg(tCurve-tBg).arg(tTotal);
-        qDebug() << "⏱" << line;
-        QFile f("perf_log.txt");
-        if (f.open(QIODevice::Append)) { f.write(line.toUtf8()); f.close(); }
+        qDebug() << "⏱ paint Y:" << tY << "ms Bg:" << (tBg-tY) << "ms Curve:" << (tCurve-tBg)
+                 << "ms total:" << tTotal << "ms";
     }
 #endif
 }

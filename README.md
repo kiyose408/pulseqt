@@ -14,7 +14,8 @@
 |------|------|
 | **双通道支持** | TCP 客户端（QTcpSocket）/ 串口（QSerialPort），可扩展为任意 IChannel 实现 |
 | **自定义二进制协议** | 2 字节帧同步头 `0xA55A` + 1 字节长度 + 1 字节类型 + N 字节负载 + 2 字节 CRC16-CCITT（小端序） |
-| **粘包拆包** | 7 状态有限状态机（`WAIT_HEADER_H → ... → WAIT_CRC_H`），逐字节推进，天然支持 TCP 粘包/半帧 |
+| **Modbus RTU 协议** | 功能码 03/04 读取保持/输入寄存器，CRC16-Modbus 校验，滑动窗口扫描，运行时协议切换 |
+| **粘包拆包** | 自定义协议：7 状态有限状态机（`WAIT_HEADER_H → ... → WAIT_CRC_H`）；Modbus：滑动窗口 CRC 扫描，均天然支持粘包/半帧 |
 | **完整性校验** | CRC16-CCITT 查表法（多项式 `0x1021`），校验失败丢弃并记录 WARN 日志 |
 | **断线重连** | 指数退避策略：1s → 2s → 4s → … → 30s 封顶，重连成功后计数器归零 |
 | **心跳保活** | 5s 空闲发送心跳帧（type=0xE2），连续 6 次无应答（30s）判定断线 |
@@ -47,7 +48,7 @@
 |------|------|
 | **线程模型** | 通信线程（QTcpSocket I/O）→ 解析线程（协议解码 + 数据缓冲 + SQLite 写入）→ UI 线程（渲染） |
 | **跨线程通信** | 全部使用 `Qt::QueuedConnection`，信号参数自动深拷贝 |
-| **生命周期** | `closeEvent` 中 `quit() → wait() → deleteLater` 安全退出，无 QThread 警告 |
+| **生命周期** | `~MainWindow()` 析构函数和 `closeEvent` 统一调用 `teardown()`：BlockingQueuedConnection 信号通知工作线程停止 → `deleteLater` 调度销毁 → `quit() + wait(5000)` 等待线程退出 → `delete` 线程对象（指针随后置空）；`ParseWorker` 析构同步停止心跳/Modbus 定时器，确保异常关闭路径也安全 |
 
 ---
 
@@ -83,7 +84,8 @@
 │  DataBuffer  DatabaseManager                                  │
 ├──────────────────────────────────────────────────────────────┤
 │                    协议层 (src/protocol/)                      │
-│  Frame  ProtocolDecoder (7 状态机)                             │
+│  Frame  ProtocolDecoder (7 状态机)  ModbusDecoder  ModbusMaster │
+│  ModbusCRC  FilterPipeline  IFilter                            │
 ├──────────────────────────────────────────────────────────────┤
 │                    线程层 (src/worker/)                        │
 │  ParseWorker (解码+缓冲+DB 落盘)                                │
@@ -100,7 +102,10 @@ IChannel (通信线程 · 虚函数多态)
   │ readyRead → QueuedConnection → ChannelManager 转发
   ▼
 ParseWorker (解析线程)
-  ├── ProtocolDecoder::feed() → 7 状态机解码
+  ├── 协议选择: setProtocol("raw"/"modbus")  → 运行时切换
+  │   ├── ProtocolDecoder::feed()   → 7 状态机解码
+  │   └── ModbusDecoder::feed()     → 滑动窗口 CRC 扫描
+  ├── ModbusMaster::poll()          → 10ms 定时轮询（仅 Modbus）
   ├── DataBuffer::push()      → 环形缓冲 (实时图表)
   ├── DatabaseManager::insert() → SQLite WAL 批量写入
   ├── Heartbeat Timer          → 心跳保活
@@ -132,10 +137,13 @@ MainWindow (UI 线程)
 
 | Type | 名称 | Payload | 说明 |
 |:----:|------|:--:|------|
-| `0x01` | 数据帧 | 通道数据（默认 3×uint16） | 采集数据 |
+| `0x01` | 数据帧 | 通道数据（uint8/uint16/int16/float） | 采集数据 |
 | `0x02` | 心跳请求 | 空 | 上位机→下位机保活探测 |
 | `0x03` | 心跳应答 | 空 | 下位机→上位机应答 |
+| `0x04` | 握手请求 | 通道数 + 类型列表 | 下位机声明通道配置 |
+| `0x05` | 握手应答 | 状态码 | 上位机确认/拒绝 |
 | `0xFF` | 错误帧 | 错误码 + 描述 | 异常通知 |
+| — | Modbus 功能码 | `0x03` 读保持寄存器 / `0x04` 读输入寄存器 | Modbus RTU 响应帧 |
 
 ### CRC16-CCITT
 
@@ -143,6 +151,15 @@ MainWindow (UI 线程)
 - 初始值：`0xFFFF`
 - 校验范围：Header + Length + Type + Payload（不含 CRC 自身）
 - 标准测试向量：`crc16_ccitt("123456789", 9) == 0x29B1`
+
+### Modbus RTU 协议
+
+- **解码方式**：滑动窗口 CRC16-Modbus 扫描（多项式 `0x8005`），无需帧同步头
+- **支持功能码**：`0x03` 读保持寄存器、`0x04` 读输入寄存器
+- **异常码处理**：`0x83`/`0x84` 异常帧记录 WARN 日志并丢弃
+- **主站轮询**：`ModbusMaster` 以 10ms 间隔构建 0x03 请求帧，无需下位机主动推送
+- **缓冲区保护**：原始数据缓冲区上限 2048 字节，超限裁剪至 1024 字节并输出 WARN
+- **协议切换**：`ParseWorker::setProtocol("raw"|"modbus")` 运行时热切换，心跳保活仅在 raw 模式生效
 
 ---
 
@@ -225,14 +242,16 @@ PulseQt/
 │   ├── DataTableModel.h        DataBuffer.h      DataPoint.h
 │   ├── DatabaseManager.h       ExportDialog.h    ConnectionDialog.h
 │   ├── ProtocolDecoder.h       Frame.h           Logger.h
+│   ├── ModbusDecoder.h         ModbusMaster.h    ModbusCRC.h
 │   ├── IChannel.h              SerialChannel.h   TcpChannel.h
 │   ├── ChannelManager.h        ChannelRegistry.h
+│   ├── FilterPipeline.h        IFilter.h
 │   └── ParseWorker.h
 ├── src/                        源码
 │   ├── main.cpp
 │   ├── ui/                     MainWindow / RealTimeChart / HistoryPlayer / ExportDialog
-│   ├── data/                   DataBuffer / DataTableModel / DatabaseManager
-│   ├── protocol/               ProtocolDecoder
+│   ├── protocol/               ProtocolDecoder / ModbusDecoder / ModbusMaster / FilterPipeline
+│   ├── data/                   DataBuffer / DataTableModel / DatabaseManager / IFilter
 │   ├── worker/                 ParseWorker
 │   └── utils/                  Logger
 ├── tools/                      辅助工具
@@ -252,7 +271,8 @@ PulseQt/
 |------|------|------|
 | 曲线绘制 | `QPolygonF::drawPolyline` 替代 QChart | 100Hz 下 QChart 掉帧，自绘可控 |
 | 抗锯齿 | 曲线关闭，坐标轴保留 | 软件渲染下抗锯齿极慢（400ms→5ms） |
-| 线程模型 | `moveToThread` + `QueuedConnection` | 职责清晰，无锁设计，杜绝数据竞争 |
+| 线程模型 | `moveToThread` + `QueuedConnection` | 三线程架构（通信→解析→UI），职责清晰，无锁设计，杜绝数据竞争 |
+| 协议双模 | 自定义二进制 + Modbus RTU，运行时 `setProtocol` 切换 | 一套架构同时支持私有协议和工业标准协议，IChannel 复用 |
 | SQLite 写入 | 批量事务（100 条/批） | 比逐条 INSERT 快 10–50 倍 |
 | 二进制帧 | 自定义协议 + CRC16 | 位宽可控，无需 JSON/Protobuf 依赖 |
 | 表格刷新 | 节流定时器（100ms） | 100Hz→10FPS，人眼够用，CPU 省 90% |
@@ -282,7 +302,7 @@ MIT License — 详见 [dist/license.txt](dist/license.txt)
 **Kiyose** — C++ / Qt 开发者
 
 - 仓库：https://gitee.com/kiyose408/pulse_qt
-- 版本：v1.1（2026-06-20）
+- 版本：v1.2.0（2026-07-20）
 
 ---
 

@@ -268,5 +268,12 @@ DatabaseManager *ParseWorker::dbManager()
 
 ParseWorker::~ParseWorker()
 {
+    // 停止所有定时器，防止析构期间触发回调访问半销毁状态
+    if (m_modbusMaster) {
+        m_modbusMaster->stop();
+        disconnect(m_modbusMaster, nullptr, this, nullptr);
+    }
+    if (m_heartbeatTimer)
+        m_heartbeatTimer->stop();
     m_dbManager.flush();
 }
