@@ -55,6 +55,14 @@ void MainWindow::setupMenuBar()
     QMenu *viewMenu = menuBar()->addMenu("视图(&V)");
     viewMenu->addAction("显示表格");
     viewMenu->addAction("暗色主题", this, &MainWindow::toggleTheme);
+    m_filterAction = viewMenu->addAction("过滤器管道");
+    m_filterAction->setCheckable(true);
+    m_filterAction->setChecked(true);   // 默认启用（空管道直通）
+    connect(m_filterAction, &QAction::toggled, this, [this](bool on) {
+        if (m_parseWorker)
+            QMetaObject::invokeMethod(m_parseWorker->pipeline(), "setEnabled",
+                                      Qt::QueuedConnection, Q_ARG(bool, on));
+    });
 
     // ── 帮助 ──
     QMenu *helpMenu = menuBar()->addMenu("帮助(&H)");

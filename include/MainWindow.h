@@ -17,6 +17,7 @@
 #include <QSplitter>
 #include <QThread>
 #include <QVBoxLayout>
+#include <QAction>
 #include "DataTableModel.h"
 #include "RealTimeChart.h"
 #include "DataBuffer.h"
@@ -59,8 +60,9 @@ private:
     QThread        *m_commThread     = nullptr;   // 通信线程
     QThread        *m_parseThread    = nullptr;   // 解析线程
     ChannelManager *m_channelManager = nullptr;   // 通道管理（重连 + 转发）
-    ParseWorker    *m_parseWorker    = nullptr;   // 解码 + 缓冲 + DB
-    HistoryPlayer *m_historyPlayer = nullptr;
+    ParseWorker    *m_parseWorker    = nullptr;   // 解码 + 缓冲 + DB + 管道
+    HistoryPlayer  *m_historyPlayer  = nullptr;
+    QAction        *m_filterAction   = nullptr;   // 过滤器管道开关
 
 private slots:
     void onExportCsv();

@@ -27,7 +27,7 @@ public:
     bool enabled() const { return m_enabled; }
 
 public slots:
-    void setEnabled(bool on) { m_enabled = on; }
+    void setEnabled(bool on);
 
 private:
     std::vector<std::unique_ptr<IFilter>> m_filters;

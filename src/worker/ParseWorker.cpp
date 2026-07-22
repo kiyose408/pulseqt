@@ -115,8 +115,9 @@ void ParseWorker::onFrameDecoded(const Frame &frame)
 
     if (!parseDataPayload(frame.payload, dp, isModbus)) return;
 
-    m_buffer.push(dp);
-    m_dbManager.insert(dp);
+    DataPoint filtered = m_pipeline.process(dp);
+    m_buffer.push(filtered);
+    m_dbManager.insert(filtered);
     emit dataPointReady();
 }
 
@@ -264,6 +265,11 @@ DataBuffer *ParseWorker::buffer()
 DatabaseManager *ParseWorker::dbManager()
 {
     return &m_dbManager;
+}
+
+FilterPipeline *ParseWorker::pipeline()
+{
+    return &m_pipeline;
 }
 
 ParseWorker::~ParseWorker()
