@@ -59,6 +59,10 @@ qt_add_executable(PulseQt
     include/IFilter.h
     include/FilterPipeline.h
     src/data/FilterPipeline.cpp
+    include/MovingAverageFilter.h
+    src/data/MovingAverageFilter.cpp
+    include/MedianFilter.h
+    src/data/MedianFilter.cpp
     include/DatabaseManager.h
     src/data/DatabaseManager.cpp
     include/DataTableModel.h
@@ -70,6 +74,8 @@ qt_add_executable(PulseQt
     include/HistoryPlayer.h
     src/ui/HistoryPlayer.cpp
     include/ExportDialog.h
+    include/FilterConfigDialog.h
+    src/ui/FilterConfigDialog.cpp
     src/ui/ExportDialog.cpp
 )
 
@@ -92,6 +98,8 @@ add_library(PulseQtTestLib STATIC
     src/protocol/ModbusMaster.cpp
     src/data/DataBuffer.cpp
     src/data/FilterPipeline.cpp
+    src/data/MovingAverageFilter.cpp
+    src/data/MedianFilter.cpp
     src/data/DatabaseManager.cpp
     src/communication/ChannelManager.cpp
     src/communication/TcpChannel.cpp
@@ -106,6 +114,8 @@ add_library(PulseQtTestLib STATIC
     include/DataPoint.h
     include/IFilter.h
     include/FilterPipeline.h
+    include/MovingAverageFilter.h
+    include/MedianFilter.h
     include/DatabaseManager.h
     include/IChannel.h
     include/ChannelManager.h
@@ -190,8 +200,17 @@ target_include_directories(TestChannelRegistry PRIVATE ${CMAKE_BINARY_DIR}/TestC
 target_link_libraries(TestChannelRegistry PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME ChannelRegistry COMMAND TestChannelRegistry)
 
+# T030 — MovingAverageFilter + MedianFilter 单元测试
+qt_add_executable(TestFilters
+    tests/TestFilters.cpp
+)
+target_include_directories(TestFilters PRIVATE include)
+target_include_directories(TestFilters PRIVATE ${CMAKE_BINARY_DIR}/TestFilters_autogen/include_$<CONFIG>)
+target_link_libraries(TestFilters PRIVATE PulseQtTestLib Qt6::Test)
+add_test(NAME Filters COMMAND TestFilters)
+
 # 测试运行时需 Qt DLL（Windows 专用）
 if(WIN32)
-    set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration ChannelManager ChannelRegistry ParseWorker PROPERTIES
+    set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration ChannelManager ChannelRegistry ParseWorker Filters PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
 endif()

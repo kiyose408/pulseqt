@@ -63,9 +63,9 @@ class NoisyChannel:
         if self.noise_amp > 0:
             val += random.gauss(0, self.noise_amp)
 
-        # 3. 脉冲野值 (随机 9999)
+        # 3. 脉冲野值 — 叠加尖峰脉冲（不替换基值，不破坏 Y 轴）
         if self.glitch_rate > 0 and random.random() < self.glitch_rate:
-            val = 9999.0
+            val += self.base_amp * 1.5   # 对于 500 幅的信号 = +750，明显但可控
 
         # 4. 50Hz 工频干扰
         if self.ripple_amp > 0:
@@ -149,7 +149,7 @@ def build_handshake(num_channels: int, types: List[int]) -> bytes:
 
 # ── TCP 服务端 ────────────────────────────────────────
 
-CHANNEL_TYPES = [0x01]  # uint16
+CHANNEL_TYPES = [0x02, 0x02, 0x02, 0x02]  # 4 通道 uint16 (0x02=CH_UINT16)
 
 def main():
     p = argparse.ArgumentParser(description="噪声传感器模拟器")
@@ -166,56 +166,57 @@ def main():
     _, host, port = args.target.split(":")
     port = int(port)
 
-    # 3 个通道：CH0=正弦+噪声, CH1=锯齿+漂移, CH2=三角+阶跃
+    # 4 通道: 正弦/常值 × 干净/噪声
     channels = [
-        NoisyChannel("sin", 500, 500, args.noise, args.glitch_rate, args.ripple, 0, 0, 0),
-        NoisyChannel("saw", 500, 500, args.noise * 0.5, args.glitch_rate / 2, 0, args.drift, 0, 0),
-        NoisyChannel("tri", 500, 500, args.noise, args.glitch_rate, 0, 0, args.step_amp, args.step_interval),
+        NoisyChannel("sin", 200, 750, 0,          0,          0, 0, 0, 0),  # CH0 干净正弦 (550~950)
+        NoisyChannel("dc",  0,   500, 0,          0,          0, 0, 0, 0),  # CH1 干净常值 (500)
+        NoisyChannel("sin", 200, 750, args.noise, args.glitch_rate, 0, 0, 0, 0),  # CH2 噪声正弦 (550~950±)
+        NoisyChannel("dc",  0,   500, args.noise, args.glitch_rate, 0, 0, 0, 0),  # CH3 噪声常值 (500±)
     ]
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((host, port))
     server.listen(1)
-    print(f"[Noisy] 噪声传感器模拟器 — {host}:{port} @ {args.rate}Hz")
-    print(f"  CH0: sin ±{args.noise} 噪声 + {args.ripple} 50Hz纹波 + {args.glitch_rate*100:.0f}% 野值")
-    print(f"  CH1: saw + {args.drift}/s 漂移")
-    print(f"  CH2: tri ±{args.noise} 噪声 + {args.step_amp} 阶跃(每{args.step_interval}s)")
+    print(f"[Noisy] 4ch 正弦+常值 — {host}:{port} @ {args.rate}Hz")
+    print(f"  CH0: 干净正弦  |  CH2: 正弦 ±{args.noise} +{args.glitch_rate*100:.0f}%尖刺")
+    print(f"  CH1: 干净常值  |  CH3: 常值 ±{args.noise} +{args.glitch_rate*100:.0f}%尖刺")
     print("  等待连接...")
 
-    conn, addr = server.accept()
-    print(f"  已连接: {addr}")
+    while True:
+        conn, addr = server.accept()
+        print(f"  已连接: {addr}")
 
-    # 握手
-    conn.sendall(build_handshake(1, CHANNEL_TYPES))
-    time.sleep(0.05)
+        # 握手
+        conn.sendall(build_handshake(len(CHANNEL_TYPES), CHANNEL_TYPES))
+        time.sleep(0.05)
 
-    interval = 1.0 / args.rate
-    t0 = time.time()
-    count = 0
+        interval = 1.0 / args.rate
+        t0 = time.time()
+        count = 0
 
-    try:
-        while True:
-            t = time.time() - t0
-            samples = [int(max(0, min(1023, ch.sample(t)))) for ch in channels]
-            payload = struct.pack("<HHH", *samples)
-            conn.sendall(build_frame(payload, 0xE1))
-            count += 1
+        try:
+            while True:
+                t = time.time() - t0
+                samples = [int(max(0, min(65535, ch.sample(t)))) for ch in channels]
+                payload = struct.pack("<HHHH", *samples)
+                conn.sendall(build_frame(payload, 0xE1))
+                count += 1
 
-            if count % 100 == 0:
-                print(f"\r  [{count:5d}帧] CH0={samples[0]:4d} CH1={samples[1]:4d} CH2={samples[2]:4d}", end="")
+                if count % 100 == 0:
+                    print(f"\r  [{count:5d}帧] CH0={samples[0]:5d} CH1={samples[1]:5d} CH2={samples[2]:5d} CH3={samples[3]:5d}", end="")
 
-            elapsed = time.time() - t0 - count * interval
-            if elapsed < interval:
-                time.sleep(interval - elapsed)
+                elapsed = time.time() - t0 - count * interval
+                if elapsed < interval:
+                    time.sleep(interval - elapsed)
 
-    except (ConnectionError, BrokenPipeError):
-        print(f"\n  客户端断开，共发送 {count} 帧")
-    except KeyboardInterrupt:
-        print(f"\n  共发送 {count} 帧")
-    finally:
-        conn.close()
-        server.close()
+        except (ConnectionError, BrokenPipeError):
+            print(f"\n  客户端断开 ({count} 帧)，等待重连...")
+        except KeyboardInterrupt:
+            print(f"\n  共发送 {count} 帧")
+            break
+        finally:
+            conn.close()
 
 
 if __name__ == "__main__":

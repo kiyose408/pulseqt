@@ -10,6 +10,7 @@
 #include <QStatusBar>
 #include <QMessageBox>
 #include "ExportDialog.h"
+#include "FilterConfigDialog.h"
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
@@ -62,6 +63,18 @@ void MainWindow::setupMenuBar()
         if (m_parseWorker)
             QMetaObject::invokeMethod(m_parseWorker->pipeline(), "setEnabled",
                                       Qt::QueuedConnection, Q_ARG(bool, on));
+    });
+    viewMenu->addSeparator();
+    viewMenu->addAction("配置过滤器...", this, [this]() {
+        if (m_parseWorker) {
+            FilterConfigDialog dlg(m_parseWorker->pipeline(), this);
+            dlg.exec();
+            // 更新状态栏
+            int n = m_parseWorker->pipeline()->count();
+            m_statusLabel->setText(n > 0
+                ? QString("过滤器管道: %1 个").arg(n)
+                : QString("过滤器管道: 空"));
+        }
     });
 
     // ── 帮助 ──
