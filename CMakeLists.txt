@@ -62,7 +62,9 @@ qt_add_executable(PulseQt
     include/MovingAverageFilter.h
     src/data/MovingAverageFilter.cpp
     include/MedianFilter.h
+    include/ThresholdAlarm.h
     src/data/MedianFilter.cpp
+    src/data/ThresholdAlarm.cpp
     include/DatabaseManager.h
     src/data/DatabaseManager.cpp
     include/DataTableModel.h
@@ -100,6 +102,7 @@ add_library(PulseQtTestLib STATIC
     src/data/FilterPipeline.cpp
     src/data/MovingAverageFilter.cpp
     src/data/MedianFilter.cpp
+    src/data/ThresholdAlarm.cpp
     src/data/DatabaseManager.cpp
     src/communication/ChannelManager.cpp
     src/communication/TcpChannel.cpp
@@ -116,6 +119,7 @@ add_library(PulseQtTestLib STATIC
     include/FilterPipeline.h
     include/MovingAverageFilter.h
     include/MedianFilter.h
+    include/ThresholdAlarm.h
     include/DatabaseManager.h
     include/IChannel.h
     include/ChannelManager.h
@@ -209,8 +213,16 @@ target_include_directories(TestFilters PRIVATE ${CMAKE_BINARY_DIR}/TestFilters_a
 target_link_libraries(TestFilters PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME Filters COMMAND TestFilters)
 
+qt_add_executable(TestThresholdAlarm
+    tests/TestThresholdAlarm.cpp
+)
+target_include_directories(TestThresholdAlarm PRIVATE include)
+target_include_directories(TestThresholdAlarm PRIVATE ${CMAKE_BINARY_DIR}/TestThresholdAlarm_autogen/include_$<CONFIG>)
+target_link_libraries(TestThresholdAlarm PRIVATE PulseQtTestLib Qt6::Test)
+add_test(NAME ThresholdAlarm COMMAND TestThresholdAlarm)
+
 # 测试运行时需 Qt DLL（Windows 专用）
 if(WIN32)
-    set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration ChannelManager ChannelRegistry ParseWorker Filters PROPERTIES
+    set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration ChannelManager ChannelRegistry ParseWorker Filters ThresholdAlarm PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
 endif()
