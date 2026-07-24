@@ -11,7 +11,9 @@
 //
 // 表结构：
 //   data_points(id INTEGER PK, timestamp INTEGER, channels BLOB)
+//   alarms(id INTEGER PK, timestamp INTEGER, channel INTEGER, value REAL, threshold REAL, is_upper INTEGER, state TEXT)
 //   idx_timestamp ON data_points(timestamp)
+//   idx_alarm_time ON alarms(timestamp)
 //==============================================================================
 
 #ifndef DATABASEMANAGER_H
@@ -50,6 +52,11 @@ public:
 
     // 清理超过 retentionDays 天的旧数据，返回删除条数
     int cleanup(int retentionDays = 7);
+
+    // ── 告警记录 ──
+    void insertAlarm(int channel, double value, double threshold, bool isUpper, const QString &state);
+    struct AlarmRecord { qint64 ts; int ch; double val; double th; bool upper; QString state; };
+    QVector<AlarmRecord> queryAlarms(qint64 from, qint64 to, int limit = 500);
 
     // 数据库中的总行数（调试用）
     int rowCount() const;

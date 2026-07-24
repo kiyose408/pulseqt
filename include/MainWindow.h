@@ -26,6 +26,7 @@
 #include "ConnectionDialog.h"
 #include "ParseWorker.h"      // 解码 + 缓冲 + DB
 #include "HistoryPlayer.h"
+#include "AlarmPanel.h"
 
 
 class MainWindow : public QMainWindow
@@ -63,6 +64,7 @@ private:
     ParseWorker    *m_parseWorker    = nullptr;   // 解码 + 缓冲 + DB + 管道
     HistoryPlayer  *m_historyPlayer  = nullptr;
     QAction        *m_filterAction   = nullptr;   // 过滤器管道开关
+    AlarmPanel     *m_alarmPanel     = nullptr;   // 告警面板
 
 private slots:
     void onExportCsv();
@@ -73,6 +75,7 @@ private slots:
     void toggleTheme();           // 切换暗色/亮色主题
     void onStart();
     void onStop();
+    void refreshAlarmConnection();
 };
 
 #endif // MAINWINDOW_H

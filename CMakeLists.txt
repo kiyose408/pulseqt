@@ -77,6 +77,8 @@ qt_add_executable(PulseQt
     src/ui/HistoryPlayer.cpp
     include/ExportDialog.h
     include/FilterConfigDialog.h
+    include/AlarmPanel.h
+    src/ui/AlarmPanel.cpp
     src/ui/FilterConfigDialog.cpp
     src/ui/ExportDialog.cpp
 )

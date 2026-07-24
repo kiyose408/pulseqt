@@ -11,6 +11,9 @@
 #include <QMessageBox>
 #include "ExportDialog.h"
 #include "FilterConfigDialog.h"
+#include "AlarmPanel.h"
+#include "ThresholdAlarm.h"
+#include <QDockWidget>
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
@@ -69,11 +72,11 @@ void MainWindow::setupMenuBar()
         if (m_parseWorker) {
             FilterConfigDialog dlg(m_parseWorker->pipeline(), this);
             dlg.exec();
-            // 更新状态栏
             int n = m_parseWorker->pipeline()->count();
             m_statusLabel->setText(n > 0
                 ? QString("过滤器管道: %1 个").arg(n)
                 : QString("过滤器管道: 空"));
+            refreshAlarmConnection();  // 重建告警信号连接
         }
     });
 
@@ -139,6 +142,13 @@ void MainWindow::setupCentralArea()
     vLayout->addWidget(m_historyPlayer);          // 底部滑块
 
     setCentralWidget(central);
+
+    // ── 告警面板（右侧 Dock）────────────────────────
+    m_alarmPanel = new AlarmPanel(nullptr, this);
+    QDockWidget *alarmDock = new QDockWidget("告警", this);
+    alarmDock->setWidget(m_alarmPanel);
+    alarmDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::BottomDockWidgetArea);
+    addDockWidget(Qt::RightDockWidgetArea, alarmDock);
 }
 
 //==============================================================================
@@ -368,3 +378,26 @@ void MainWindow::onStop()
 }
 
 
+
+void MainWindow::refreshAlarmConnection()
+{
+    if (!m_parseWorker || !m_alarmPanel) return;
+
+    // 查找管道中的 ThresholdAlarm，连接信号到告警面板
+    auto *pipeline = m_parseWorker->pipeline();
+    for (int i = 0; i < pipeline->count(); ++i) {
+        auto *f = pipeline->filterAt(i);
+        if (!f || f->name() != "ThresholdAlarm") continue;
+        auto *alarm = static_cast<ThresholdAlarm*>(f);
+
+        // 跨线程 QueuedConnection：解析线程 → UI 线程
+        connect(alarm, &ThresholdAlarm::alarmTriggered,
+                m_alarmPanel, &AlarmPanel::onAlarmTriggered,
+                Qt::QueuedConnection);
+        connect(alarm, &ThresholdAlarm::alarmCleared,
+                m_alarmPanel, &AlarmPanel::onAlarmCleared,
+                Qt::QueuedConnection);
+        m_alarmPanel->setDatabase(m_parseWorker->dbManager());
+        break;
+    }
+}

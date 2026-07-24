@@ -140,9 +140,13 @@ void FilterConfigDialog::onAdd()
         f = new MedianFilter(m_windowSpin->value());
     else {
         auto *alarm = new ThresholdAlarm;
-        alarm->setUpperLimit(0, m_upperSpin->value());
-        alarm->setLowerLimit(0, m_lowerSpin->value());
         alarm->setHysteresis(m_hysteresisSpin->value());
+        // 应用阈值到指定通道（空=全部，此时暂只设 CH0~3）
+        QVector<int> applyCh = chList.isEmpty() ? QVector<int>{0, 1, 2, 3} : chList;
+        for (int c : applyCh)
+            alarm->setUpperLimit(c, m_upperSpin->value());
+        for (int c : applyCh)
+            alarm->setLowerLimit(c, m_lowerSpin->value());
         f = alarm;
     }
 
