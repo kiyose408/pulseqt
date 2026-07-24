@@ -80,6 +80,24 @@ void MainWindow::setupMenuBar()
         }
     });
 
+    // ── 面板显隐 ──
+    viewMenu->addSeparator();
+    auto addDockToggle = [&](const QString &title, QDockWidget *dock) {
+        QAction *a = viewMenu->addAction(title);
+        a->setCheckable(true);
+        a->setChecked(true);
+        connect(a, &QAction::toggled, dock, &QDockWidget::setVisible);
+        connect(dock, &QDockWidget::visibilityChanged, a, &QAction::setChecked);
+    };
+    addDockToggle("数据表格", m_tableDock);
+    addDockToggle("历史回放", m_playbackDock);
+    addDockToggle("告警面板", m_alarmDock);
+
+    viewMenu->addSeparator();
+    viewMenu->addAction("恢复默认布局", this, [this]() {
+        restoreDefaultLayout();
+    });
+
     // ── 帮助 ──
     QMenu *helpMenu = menuBar()->addMenu("帮助(&H)");
     helpMenu->addAction("关于...", this, &MainWindow::onAbout);
@@ -105,10 +123,13 @@ void MainWindow::setupToolBar()
 
 void MainWindow::setupCentralArea()
 {
-    // ── 实时曲线 ──────────────────────────────────
+    // ── 实时曲线 ──
     m_chart = new RealTimeChart(this);
+    m_chartDock = new QDockWidget("实时曲线", this);
+    m_chartDock->setWidget(m_chart);
+    m_chartDock->setObjectName("dockChart");
 
-    // ── 数据表格 ──────────────────────────────────
+    // ── 数据表格 ──
     m_tableModel = new DataTableModel(this);
     m_tableView  = new QTableView(this);
     m_tableView->setModel(m_tableModel);
@@ -118,37 +139,44 @@ void MainWindow::setupCentralArea()
     connect(m_tableModel, &DataTableModel::dataRefreshed, this, [this]() {
         m_tableView->scrollToBottom();
     });
+    m_tableDock = new QDockWidget("数据表格", this);
+    m_tableDock->setWidget(m_tableView);
+    m_tableDock->setObjectName("dockTable");
 
-    // ── 上半区：实时曲线 + 表格 ─────────────────────
-    QSplitter *topSplitter = new QSplitter(Qt::Horizontal, this);
-    topSplitter->addWidget(m_chart);
-    topSplitter->addWidget(m_tableView);
-    topSplitter->setStretchFactor(0, 7);
-    topSplitter->setStretchFactor(1, 3);
-
-    // ── 回放曲线（独立 RealTimeChart，绑定独立 DataBuffer） ──
+    // ── 回放曲线 + 进度条（同一个 Dock） ──
     m_playbackChart = new RealTimeChart(this);
-    m_playbackChart->setMinimumHeight(150);
-
-    // ── 历史回放滑块 ──────────────────────────────
+    m_playbackChart->setMinimumHeight(100);
     m_historyPlayer = new HistoryPlayer(this);
+    m_historyPlayer->setMaximumHeight(50);
+    QWidget *playbackWidget = new QWidget(this);
+    QVBoxLayout *pbLayout = new QVBoxLayout(playbackWidget);
+    pbLayout->setContentsMargins(0, 0, 0, 0);
+    pbLayout->addWidget(m_playbackChart, 1);
+    pbLayout->addWidget(m_historyPlayer);
+    m_playbackDock = new QDockWidget("历史回放", this);
+    m_playbackDock->setWidget(playbackWidget);
+    m_playbackDock->setObjectName("dockPlayback");
 
-    // ── 整体垂直布局 ──────────────────────────────
-    QWidget *central = new QWidget(this);
-    QVBoxLayout *vLayout = new QVBoxLayout(central);
-    vLayout->setContentsMargins(0, 0, 0, 0);
-    vLayout->addWidget(topSplitter, 3);          // 上半区占 3 份
-    vLayout->addWidget(m_playbackChart, 1);       // 回放曲线占 1 份
-    vLayout->addWidget(m_historyPlayer);          // 底部滑块
-
-    setCentralWidget(central);
-
-    // ── 告警面板（右侧 Dock）────────────────────────
+    // ── 告警面板 ──
     m_alarmPanel = new AlarmPanel(nullptr, this);
-    QDockWidget *alarmDock = new QDockWidget("告警", this);
-    alarmDock->setWidget(m_alarmPanel);
-    alarmDock->setAllowedAreas(Qt::RightDockWidgetArea | Qt::BottomDockWidgetArea);
-    addDockWidget(Qt::RightDockWidgetArea, alarmDock);
+    m_alarmDock = new QDockWidget("告警", this);
+    m_alarmDock->setWidget(m_alarmPanel);
+    m_alarmDock->setObjectName("dockAlarm");
+
+    // ── 添加所有 Dock ──
+    addDockWidget(Qt::LeftDockWidgetArea,  m_chartDock);
+    splitDockWidget(m_chartDock, m_tableDock, Qt::Horizontal);
+    splitDockWidget(m_chartDock, m_playbackDock, Qt::Vertical);
+    splitDockWidget(m_tableDock, m_alarmDock, Qt::Vertical);
+
+    // ── Dock 属性 ──
+    m_chartDock->setFeatures(QDockWidget::DockWidgetMovable |
+                             QDockWidget::DockWidgetFloatable);
+    for (auto *d : {m_tableDock, m_playbackDock, m_alarmDock}) {
+        d->setFeatures(QDockWidget::DockWidgetMovable |
+                       QDockWidget::DockWidgetFloatable |
+                       QDockWidget::DockWidgetClosable);
+    }
 }
 
 //==============================================================================
@@ -400,4 +428,21 @@ void MainWindow::refreshAlarmConnection()
         m_alarmPanel->setDatabase(m_parseWorker->dbManager());
         break;
     }
+}
+
+void MainWindow::restoreDefaultLayout()
+{
+    // 移除所有 dock 后重新添加，恢复初始布局
+    removeDockWidget(m_tableDock);
+    removeDockWidget(m_playbackDock);
+    removeDockWidget(m_alarmDock);
+
+    addDockWidget(Qt::LeftDockWidgetArea, m_chartDock);
+    splitDockWidget(m_chartDock, m_tableDock, Qt::Horizontal);
+    splitDockWidget(m_chartDock, m_playbackDock, Qt::Vertical);
+    splitDockWidget(m_tableDock, m_alarmDock, Qt::Vertical);
+
+    m_tableDock->show();
+    m_playbackDock->show();
+    m_alarmDock->show();
 }

@@ -65,6 +65,10 @@ private:
     HistoryPlayer  *m_historyPlayer  = nullptr;
     QAction        *m_filterAction   = nullptr;   // 过滤器管道开关
     AlarmPanel     *m_alarmPanel     = nullptr;   // 告警面板
+    QDockWidget    *m_chartDock      = nullptr;   // 实时曲线面板
+    QDockWidget    *m_tableDock      = nullptr;   // 数据表格面板
+    QDockWidget    *m_playbackDock   = nullptr;   // 回放面板
+    QDockWidget    *m_alarmDock      = nullptr;   // 告警面板容器
 
 private slots:
     void onExportCsv();
@@ -73,6 +77,7 @@ private slots:
     void onDisconnect();
     void teardown();              // 全部拆光（仅 closeEvent 调用）
     void toggleTheme();           // 切换暗色/亮色主题
+    void restoreDefaultLayout();   // 恢复 Dock 默认布局
     void onStart();
     void onStop();
     void refreshAlarmConnection();
