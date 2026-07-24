@@ -78,6 +78,8 @@ qt_add_executable(PulseQt
     include/ExportDialog.h
     include/FilterConfigDialog.h
     include/AlarmPanel.h
+    include/SpectrumWidget.h
+    src/ui/SpectrumWidget.cpp
     src/ui/AlarmPanel.cpp
     src/ui/FilterConfigDialog.cpp
     src/ui/ExportDialog.cpp

@@ -27,6 +27,7 @@
 #include "ParseWorker.h"      // 解码 + 缓冲 + DB
 #include "HistoryPlayer.h"
 #include "AlarmPanel.h"
+#include "SpectrumWidget.h"
 
 
 class MainWindow : public QMainWindow
@@ -65,10 +66,12 @@ private:
     HistoryPlayer  *m_historyPlayer  = nullptr;
     QAction        *m_filterAction   = nullptr;   // 过滤器管道开关
     AlarmPanel     *m_alarmPanel     = nullptr;   // 告警面板
+    SpectrumWidget *m_spectrumWidget = nullptr;   // 频谱分析
     QDockWidget    *m_chartDock      = nullptr;   // 实时曲线面板
     QDockWidget    *m_tableDock      = nullptr;   // 数据表格面板
     QDockWidget    *m_playbackDock   = nullptr;   // 回放面板
     QDockWidget    *m_alarmDock      = nullptr;   // 告警面板容器
+    QDockWidget    *m_spectrumDock   = nullptr;   // 频谱面板容器
 
 private slots:
     void onExportCsv();

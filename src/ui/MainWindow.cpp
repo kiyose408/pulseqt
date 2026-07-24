@@ -18,6 +18,7 @@
 #include "ThresholdAlarm.h"
 #include <QDockWidget>
 #include <QSettings>
+#include "SpectrumWidget.h"
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
@@ -32,7 +33,7 @@ MainWindow::MainWindow(QWidget *parent)
     QSettings settings;
     if (!restoreGeometry(settings.value("window/geometry").toByteArray()))
         resize(1200, 800);   // 首次运行用默认大小
-    restoreState(settings.value("window/dockState").toByteArray(), 1);
+    restoreState(settings.value("window/dockState").toByteArray(), 2);
     m_darkTheme = settings.value("window/darkTheme", false).toBool();
     if (m_darkTheme) toggleTheme();
     double tw = settings.value("window/timeWindow", 30.0).toDouble();
@@ -43,7 +44,7 @@ MainWindow::~MainWindow()
 {
     QSettings settings;
     settings.setValue("window/geometry", saveGeometry());
-    settings.setValue("window/dockState", saveState(1));
+    settings.setValue("window/dockState", saveState(2));
     settings.setValue("window/darkTheme", m_darkTheme);
     if (m_chart) settings.setValue("window/timeWindow", m_chart->timeWindow());
     savePipelineConfig();
@@ -73,7 +74,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 {
     QSettings settings;
     settings.setValue("window/geometry", saveGeometry());
-    settings.setValue("window/dockState", saveState(1));
+    settings.setValue("window/dockState", saveState(2));
     settings.setValue("window/darkTheme", m_darkTheme);
     if (m_chart) settings.setValue("window/timeWindow", m_chart->timeWindow());
     savePipelineConfig();
@@ -104,6 +105,7 @@ void MainWindow::setDataBuffer(DataBuffer *buffer)
 {
     m_tableModel->setDataBuffer(buffer);
     m_chart->setDataBuffer(buffer);
+    m_spectrumWidget->setDataBuffer(buffer);
 }
 
 //==============================================================================
@@ -155,6 +157,7 @@ void MainWindow::setupMenuBar()
     addDockToggle("数据表格", m_tableDock);
     addDockToggle("历史回放", m_playbackDock);
     addDockToggle("告警面板", m_alarmDock);
+    addDockToggle("频谱分析", m_spectrumDock);
 
     viewMenu->addSeparator();
     viewMenu->addAction("恢复默认布局", this, [this]() {
@@ -226,16 +229,25 @@ void MainWindow::setupCentralArea()
     m_alarmDock->setWidget(m_alarmPanel);
     m_alarmDock->setObjectName("dockAlarm");
 
+    // ── 频谱分析 ──
+    m_spectrumWidget = new SpectrumWidget(this);
+    m_spectrumWidget->setFFTSize(256);
+    m_spectrumDock = new QDockWidget("频谱分析", this);
+    m_spectrumDock->setWidget(m_spectrumWidget);
+    m_spectrumDock->setObjectName("dockSpectrum");
+
     // ── 添加所有 Dock ──
     addDockWidget(Qt::LeftDockWidgetArea,  m_chartDock);
     splitDockWidget(m_chartDock, m_tableDock, Qt::Horizontal);
     splitDockWidget(m_chartDock, m_playbackDock, Qt::Vertical);
     splitDockWidget(m_tableDock, m_alarmDock, Qt::Vertical);
+    splitDockWidget(m_alarmDock, m_spectrumDock, Qt::Horizontal);
+    splitDockWidget(m_alarmDock, m_spectrumDock, Qt::Horizontal);
 
     // ── Dock 属性 ──
     m_chartDock->setFeatures(QDockWidget::DockWidgetMovable |
                              QDockWidget::DockWidgetFloatable);
-    for (auto *d : {m_tableDock, m_playbackDock, m_alarmDock}) {
+    for (auto *d : {m_tableDock, m_playbackDock, m_alarmDock, m_spectrumDock}) {
         d->setFeatures(QDockWidget::DockWidgetMovable |
                        QDockWidget::DockWidgetFloatable |
                        QDockWidget::DockWidgetClosable);
@@ -510,15 +522,19 @@ void MainWindow::restoreDefaultLayout()
     removeDockWidget(m_tableDock);
     removeDockWidget(m_playbackDock);
     removeDockWidget(m_alarmDock);
+    removeDockWidget(m_spectrumDock);
 
     addDockWidget(Qt::LeftDockWidgetArea, m_chartDock);
     splitDockWidget(m_chartDock, m_tableDock, Qt::Horizontal);
     splitDockWidget(m_chartDock, m_playbackDock, Qt::Vertical);
     splitDockWidget(m_tableDock, m_alarmDock, Qt::Vertical);
+    splitDockWidget(m_alarmDock, m_spectrumDock, Qt::Horizontal);
+    splitDockWidget(m_alarmDock, m_spectrumDock, Qt::Horizontal);
 
     m_tableDock->show();
     m_playbackDock->show();
     m_alarmDock->show();
+    m_spectrumDock->show();
 }
 
 void MainWindow::savePipelineConfig()

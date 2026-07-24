@@ -10,6 +10,7 @@
 #include <QWheelEvent>
 #include <QContextMenuEvent>
 #include "DataBuffer.h"
+#include "ChannelColors.h"
 class RealTimeChart : public QWidget {
     Q_OBJECT
 public:
@@ -60,7 +61,7 @@ private:
     QVector<bool> m_chVisible;          // 通道显隐，默认全可见
     QVector<double> m_chYMin, m_chYMax; // 每通道独立 Y 轴
 
-    static const QColor CH_COLORS[16];
+    // CH_COLORS 定义在 ChannelColors.h（与 SpectrumWidget 共享）
 
 };
 
