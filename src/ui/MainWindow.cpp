@@ -11,28 +11,91 @@
 #include <QMessageBox>
 #include "ExportDialog.h"
 #include "FilterConfigDialog.h"
+#include "ThresholdAlarm.h"
+#include "MovingAverageFilter.h"
+#include "MedianFilter.h"
 #include "AlarmPanel.h"
 #include "ThresholdAlarm.h"
 #include <QDockWidget>
+#include <QSettings>
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     setWindowTitle("PulseQt");
-    resize(1200, 800);
 
     setupCentralArea();   // 先创建曲线+表格（setupMenuBar 可能引用）
     setupMenuBar();
     setupToolBar();
     setupStatusBar();
+
+    // 恢复窗口状态
+    QSettings settings;
+    if (!restoreGeometry(settings.value("window/geometry").toByteArray()))
+        resize(1200, 800);   // 首次运行用默认大小
+    restoreState(settings.value("window/dockState").toByteArray(), 1);
+    m_darkTheme = settings.value("window/darkTheme", false).toBool();
+    if (m_darkTheme) toggleTheme();
+    double tw = settings.value("window/timeWindow", 30.0).toDouble();
+    if (m_chart) m_chart->setTimeWindow(tw);
 }
 
 MainWindow::~MainWindow()
 {
+    QSettings settings;
+    settings.setValue("window/geometry", saveGeometry());
+    settings.setValue("window/dockState", saveState(1));
+    settings.setValue("window/darkTheme", m_darkTheme);
+    if (m_chart) settings.setValue("window/timeWindow", m_chart->timeWindow());
+    savePipelineConfig();
+    // 保存过滤器管道配置
+    if (m_parseWorker) {
+        QStringList filterDescs;
+        auto *pipe = m_parseWorker->pipeline();
+        for (int i = 0; i < pipe->count(); ++i) {
+            auto *f = pipe->filterAt(i);
+            if (!f) continue;
+            QString desc = f->name();
+            auto chs = f->channels();
+            if (!chs.isEmpty()) {
+                QStringList sl;
+                for (int c : chs) sl << QString::number(c);
+                desc += "::" + sl.join(",");
+            }
+            filterDescs << desc;
+        }
+        settings.setValue("pipeline/filters", filterDescs);
+    }
+
     teardown();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    QSettings settings;
+    settings.setValue("window/geometry", saveGeometry());
+    settings.setValue("window/dockState", saveState(1));
+    settings.setValue("window/darkTheme", m_darkTheme);
+    if (m_chart) settings.setValue("window/timeWindow", m_chart->timeWindow());
+    savePipelineConfig();
+    // 保存过滤器管道配置
+    if (m_parseWorker) {
+        QStringList filterDescs;
+        auto *pipe = m_parseWorker->pipeline();
+        for (int i = 0; i < pipe->count(); ++i) {
+            auto *f = pipe->filterAt(i);
+            if (!f) continue;
+            QString desc = f->name();
+            auto chs = f->channels();
+            if (!chs.isEmpty()) {
+                QStringList sl;
+                for (int c : chs) sl << QString::number(c);
+                desc += "::" + sl.join(",");
+            }
+            filterDescs << desc;
+        }
+        settings.setValue("pipeline/filters", filterDescs);
+    }
+
     teardown();
     event->accept();
 }
@@ -219,13 +282,23 @@ void MainWindow::onConnect()
     if (m_connected)
         onDisconnect();
 
-    // ── 弹对话框（每次连接都弹，可换通道） ────────────
+    // ── 弹对话框 ──
+    QSettings settings;
+    QString lastChannel = settings.value("connection/lastChannel").toString();
+    QVariantMap lastCfg = settings.value("connection/lastConfig").toMap();
+
     ConnectionDialog dlg(this);
+    if (!lastChannel.isEmpty())
+        dlg.setInitialValues(lastChannel, lastCfg);
     if (dlg.exec() != QDialog::Accepted)
         return;
 
     QString    channelId = dlg.selectedChannelId();
     QVariantMap cfg      = dlg.config();
+
+    // 保存本次配置
+    settings.setValue("connection/lastChannel", channelId);
+    settings.setValue("connection/lastConfig", cfg);
 
     // ── 首次连接：创建线程 + 管理器 + 解析器 ──────────
     if (!m_parseWorker) {
@@ -271,6 +344,7 @@ void MainWindow::onConnect()
         m_historyPlayer->setChart(m_playbackChart);
         m_historyPlayer->setTimeWindow(m_chart->timeWindow());
         m_historyPlayer->loadTimeRange();
+    restorePipelineConfig();
 
         m_commThread->start();
         m_parseThread->start();
@@ -445,4 +519,60 @@ void MainWindow::restoreDefaultLayout()
     m_tableDock->show();
     m_playbackDock->show();
     m_alarmDock->show();
+}
+
+void MainWindow::savePipelineConfig()
+{
+    if (!m_parseWorker) return;
+    QSettings settings;
+    QStringList descs;
+    auto *pipe = m_parseWorker->pipeline();
+    for (int i = 0; i < pipe->count(); ++i) {
+        auto *f = pipe->filterAt(i);
+        if (!f) continue;
+        QString d = f->name();
+        auto chs = f->channels();
+        if (!chs.isEmpty()) {
+            QStringList sl; for (int c : chs) sl << QString::number(c);
+            d += "::" + sl.join(",");
+        }
+        descs << d;
+    }
+    settings.setValue("pipeline/filters", descs);
+}
+
+void MainWindow::restorePipelineConfig()
+{
+    if (!m_parseWorker) return;
+    QSettings settings;
+    QStringList saved = settings.value("pipeline/filters").toStringList();
+    for (const QString &desc : saved) {
+        auto parts = desc.split("::");
+        QString name = parts.value(0);
+        QVector<int> chs;
+        if (parts.size() > 1) {
+            for (const QString &s : parts[1].split(',')) {
+                bool ok; int c = s.trimmed().toInt(&ok);
+                if (ok) chs.append(c);
+            }
+        }
+        std::unique_ptr<IFilter> f;
+        int win = 5;
+        if (name.startsWith("MovingAverage")) {
+            f = std::make_unique<MovingAverageFilter>(win,
+                name.contains("EMA") ? MovingAverageFilter::EMA : MovingAverageFilter::Simple);
+        } else if (name.startsWith("Median")) {
+            f = std::make_unique<MedianFilter>(win);
+        } else if (name == "ThresholdAlarm") {
+            auto *a = new ThresholdAlarm;
+            a->setUpperLimit(0, settings.value("alarm/upper", 900).toDouble());
+            a->setLowerLimit(0, settings.value("alarm/lower", 100).toDouble());
+            a->setHysteresis(settings.value("alarm/hysteresis", 5.0).toDouble());
+            f.reset(a);
+        }
+        if (f) {
+            if (!chs.isEmpty()) f->setChannels(chs);
+            m_parseWorker->pipeline()->addFilter(std::move(f));
+        }
+    }
 }

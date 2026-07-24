@@ -78,6 +78,8 @@ private slots:
     void teardown();              // 全部拆光（仅 closeEvent 调用）
     void toggleTheme();           // 切换暗色/亮色主题
     void restoreDefaultLayout();   // 恢复 Dock 默认布局
+    void savePipelineConfig();
+    void restorePipelineConfig();
     void onStart();
     void onStop();
     void refreshAlarmConnection();

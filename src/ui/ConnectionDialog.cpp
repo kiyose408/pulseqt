@@ -129,3 +129,30 @@ QVariantMap ConnectionDialog::config() const
     }
     return result;
 }
+
+// ── 预填上次配置 ──────────────────────────────────────
+void ConnectionDialog::setInitialValues(const QString &channelId, const QVariantMap &values)
+{
+    // 选通道
+    for (int i = 0; i < m_channelCombo->count(); ++i) {
+        if (m_channelCombo->itemData(i).toString() == channelId) {
+            m_channelCombo->setCurrentIndex(i);
+            break;
+        }
+    }
+
+    // 填字段
+    for (auto it = m_configWidgets.begin(); it != m_configWidgets.end(); ++it) {
+        const QString &key = it.key();
+        if (!values.contains(key)) continue;
+        auto *w = it.value();
+        QVariant v = values[key];
+
+        if (auto *cb = qobject_cast<QComboBox*>(w))
+            cb->setCurrentText(v.toString());
+        else if (auto *sb = qobject_cast<QSpinBox*>(w))
+            sb->setValue(v.toInt());
+        else if (auto *le = qobject_cast<QLineEdit*>(w))
+            le->setText(v.toString());
+    }
+}

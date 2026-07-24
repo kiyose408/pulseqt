@@ -28,6 +28,9 @@ public:
     QString   selectedChannelId() const;
     QVariantMap config() const;
 
+    // 预填上次连接参数
+    void setInitialValues(const QString &channelId, const QVariantMap &values);
+
 private slots:
     void onChannelChanged(int index);
 

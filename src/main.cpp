@@ -11,6 +11,8 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
+    app.setOrganizationName("PulseQt");
+    app.setApplicationName("PulseQt");
     Logger::instance().init("app.log");
 
     // 注册 GUI 错误弹窗回调（ERROR / FATAL 级弹出 QMessageBox）
