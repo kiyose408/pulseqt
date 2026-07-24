@@ -207,6 +207,15 @@ void RealTimeChart::wheelEvent(QWheelEvent *event)
 void RealTimeChart::mousePressEvent(QMouseEvent *event)
 {
     if(event ->button() == Qt::LeftButton){
+        auto snap = m_buffer ? m_buffer->snapshot() : QVector<DataPoint>();
+        int chCount = snap.isEmpty() ? 0 : snap[0].channels.size();
+        int ch = hitTestLegend(event->pos(), chCount);
+        if (ch >= 0) {
+            if (ch < m_chVisible.size())
+                m_chVisible[ch] = !m_chVisible[ch];
+            update();
+            return;
+        }
         m_dragging = true;
         m_lastMousePos = event->pos();
     }
@@ -248,7 +257,18 @@ void RealTimeChart::computeYRange()
     auto snap = m_buffer->snapshot();
     if (snap.size() < 2) return;
 
-    // ── 共享计算：右边界 + 窗口 + 偏移 ──────────────
+    int channels = snap[0].channels.size();
+
+    // ── 初始化可见性 + Y 轴数组 ──
+    if (m_chVisible.size() < channels) {
+        int oldVis = m_chVisible.size(); m_chVisible.resize(channels);
+        for (int i = oldVis; i < channels; ++i)
+            m_chVisible[i] = true;
+    }
+    m_chYMin.resize(channels);
+    m_chYMax.resize(channels);
+
+    // ── 共享计算：右边界 + 窗口 + 偏移 ──
     qint64 wallNow = QDateTime::currentMSecsSinceEpoch();
     if (m_currentTime > 0) {
         m_latestTs = m_currentTime;
@@ -263,25 +283,39 @@ void RealTimeChart::computeYRange()
     m_minTs    = m_latestTs - static_cast<qint64>(m_windowMs + m_usedOffset);
     if (m_minTs < 0) m_minTs = 0;
 
-    // ── Y 轴范围 ────────────────────────────────────
-    int channels = snap[0].channels.size();
-    double yMin = 0, yMax = 1024;
-    bool first = true;
+    // ── 每通道独立 Y 范围 ──
     auto it = std::lower_bound(snap.begin(), snap.end(), m_minTs,
         [](const DataPoint &dp, uint64_t ts) { return dp.timestamp < ts; });
-    for (; it != snap.end(); ++it) {
-        for (int ch = 0; ch < channels && ch < 16; ++ch) {
-            double v = it->channels[ch];
-            if (first) { yMin = yMax = v; first = false; }
-            else { if (v < yMin) yMin = v; if (v > yMax) yMax = v; }
+    for (int ch = 0; ch < channels && ch < 16; ++ch) {
+        double cMin = 0, cMax = 1024;
+        bool first = true;
+        for (auto jt = it; jt != snap.end(); ++jt) {
+            double v = jt->channels[ch];
+            if (first) { cMin = cMax = v; first = false; }
+            else { if (v < cMin) cMin = v; if (v > cMax) cMax = v; }
+        }
+        if (cMax > cMin) {
+            double pad = (cMax - cMin) * 0.1;
+            m_chYMin[ch] = cMin - pad;
+            m_chYMax[ch] = cMax + pad;
+        } else {
+            m_chYMin[ch] = cMin - 10;
+            m_chYMax[ch] = cMax + 10;
         }
     }
-    if (yMax > yMin) {
-        double pad = (yMax - yMin) * 0.1;
-        yMin -= pad; yMax += pad;
+
+    // 全局 Y 保留兼容（用于共享 Y 轴的背景绘制）
+    double yMin = 0, yMax = 1024;
+    bool firstGlobal = true;
+    for (int ch = 0; ch < channels && ch < 16; ++ch) {
+        if (!m_chVisible[ch]) continue;
+        if (firstGlobal) { yMin = m_chYMin[ch]; yMax = m_chYMax[ch]; firstGlobal = false; }
+        else {
+            if (m_chYMin[ch] < yMin) yMin = m_chYMin[ch];
+            if (m_chYMax[ch] > yMax) yMax = m_chYMax[ch];
+        }
     }
-    m_curYMin = yMin;
-    m_curYMax = yMax;
+    if (!firstGlobal) { m_curYMin = yMin; m_curYMax = yMax; }
 }
 
 void RealTimeChart::drawCurves(QPainter &p)
@@ -294,11 +328,14 @@ void RealTimeChart::drawCurves(QPainter &p)
     int channels = snap[0].channels.size();
 
     // ── Y 轴范围（已由 computeYRange 预先计算）───────
-    double yMin = m_curYMin, yMax = m_curYMax;
+    
 
 
 
-    for (int ch = 0; ch < channels && ch < 16; ++ch) {
+        for (int ch = 0; ch < channels && ch < 16; ++ch) {
+        if (ch < m_chVisible.size() && !m_chVisible[ch]) continue;
+        double cYMin = (ch < m_chYMin.size()) ? m_chYMin[ch] : m_curYMin;
+        double cYMax = (ch < m_chYMax.size()) ? m_chYMax[ch] : m_curYMax;
         QPolygonF polyline;
         double lastPx = -9999;
         double decimateThreshold = 1.5;
@@ -309,7 +346,7 @@ void RealTimeChart::drawCurves(QPainter &p)
             const auto &dp = *it;
 
             double px = timeToPixelX(dp.timestamp, m_latestTs, m_windowMs, m_usedOffset);
-            double py = valueToPixelY(dp.channels[ch], yMin, yMax);
+            double py = valueToPixelY(dp.channels[ch], cYMin, cYMax);
 
             if (!polyline.isEmpty() && qAbs(px - lastPx) < decimateThreshold) continue;
             lastPx = px;
@@ -325,23 +362,48 @@ void RealTimeChart::drawLegend(QPainter &p, int channels)
 {
     if (channels > 16) channels = 16;
 
-    int x = width() -120;   //右上角起始位置
-    int y =25;
+    int x = width() - 130;
+    int y = 25;
 
     QFont font = p.font();
     font.setPointSize(8);
     p.setFont(font);
 
-    for(int i = 0; i <channels;++i){
-        //色块12x12
+    for (int i = 0; i < channels; ++i) {
+        bool visible = (i < m_chVisible.size()) ? m_chVisible[i] : true;
+
+        // 色块（可见=实心，隐藏=空心）
         p.setPen(Qt::NoPen);
         p.setBrush(CH_COLORS[i]);
-        p.drawRect(x,y,12,12);
+        if (visible) {
+            p.drawRect(x, y, 12, 12);           // 实心色块
+        } else {
+            p.setBrush(Qt::NoBrush);
+            p.setPen(CH_COLORS[i]);
+            p.drawRect(x, y, 12, 12);           // 空心轮廓
+        }
 
-        //文字
-        p.setPen(m_darkMode ? QColor(0xDC,0xDC,0xDC) : Qt::black);
-        p.drawText(x + 16, y + 10, QString("CH%1").arg(i));
+        // 文字（隐藏=灰字 + 删除线）
+        QColor textColor = m_darkMode ? QColor(0xDC, 0xDC, 0xDC) : Qt::black;
+        if (!visible) textColor = QColor(128, 128, 128);
+        p.setPen(textColor);
+        QString label = QString("CH%1").arg(i);
+        if (!visible) label = QString("CH%1  ✗").arg(i);  // 显式隐藏标记
+        p.drawText(x + 16, y + 10, label);
 
-        y += 16;   // 下一个图例往下排
+        y += 16;
     }
+}
+
+int RealTimeChart::hitTestLegend(const QPoint &pos, int channels) const
+{
+    if (channels > 16) channels = 16;
+    int x = width() - 130;
+    int y = 25;
+    for (int i = 0; i < channels; ++i) {
+        QRect r(x, y, 110, 16);
+        if (r.contains(pos)) return i;
+        y += 16;
+    }
+    return -1;
 }

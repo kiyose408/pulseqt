@@ -39,6 +39,7 @@ private:
     void drawBackground(QPainter &p);           //网格＋坐标轴
     void drawCurves (QPainter &p);              //曲线
     void drawLegend(QPainter &p, int channels);  //图例
+    int  hitTestLegend(const QPoint &pos, int channels) const;  //点击图例返回通道号,-1=未命中
 
     DataBuffer *m_buffer = nullptr;
     QTimer *m_refreshTimer = nullptr;
@@ -55,6 +56,9 @@ private:
     bool m_dragging =false;
     qint64 m_currentTime = 0;           //回放参考时间（>0=回放模式）
     QPoint m_lastMousePos;
+
+    QVector<bool> m_chVisible;          // 通道显隐，默认全可见
+    QVector<double> m_chYMin, m_chYMax; // 每通道独立 Y 轴
 
     static const QColor CH_COLORS[16];
 
