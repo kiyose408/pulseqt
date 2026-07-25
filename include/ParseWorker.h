@@ -8,6 +8,7 @@
 #include "ProtocolDecoder.h"
 #include "DataBuffer.h"
 #include "DatabaseManager.h"
+#include "FilterPipeline.h"
 
 class ModbusDecoder;
 class ModbusMaster;
@@ -21,6 +22,7 @@ public:
     ~ParseWorker();
     DataBuffer *buffer();
     DatabaseManager *dbManager();
+    FilterPipeline *pipeline();
 
 public slots:
     void onRawDataReceived(const QByteArray &data);
@@ -50,6 +52,7 @@ private:
     int     m_heartbeatMissed = 0;
     DataBuffer       m_buffer;
     DatabaseManager  m_dbManager;
+    FilterPipeline   m_pipeline;
 
     int m_channelCount = 0;
     QVector<int> m_channelTypes;

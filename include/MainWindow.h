@@ -17,6 +17,7 @@
 #include <QSplitter>
 #include <QThread>
 #include <QVBoxLayout>
+#include <QAction>
 #include "DataTableModel.h"
 #include "RealTimeChart.h"
 #include "DataBuffer.h"
@@ -25,6 +26,8 @@
 #include "ConnectionDialog.h"
 #include "ParseWorker.h"      // 解码 + 缓冲 + DB
 #include "HistoryPlayer.h"
+#include "AlarmPanel.h"
+#include "SpectrumWidget.h"
 
 
 class MainWindow : public QMainWindow
@@ -33,7 +36,7 @@ class MainWindow : public QMainWindow
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
-    ~MainWindow() override = default;
+    ~MainWindow() override;
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -59,8 +62,16 @@ private:
     QThread        *m_commThread     = nullptr;   // 通信线程
     QThread        *m_parseThread    = nullptr;   // 解析线程
     ChannelManager *m_channelManager = nullptr;   // 通道管理（重连 + 转发）
-    ParseWorker    *m_parseWorker    = nullptr;   // 解码 + 缓冲 + DB
-    HistoryPlayer *m_historyPlayer = nullptr;
+    ParseWorker    *m_parseWorker    = nullptr;   // 解码 + 缓冲 + DB + 管道
+    HistoryPlayer  *m_historyPlayer  = nullptr;
+    QAction        *m_filterAction   = nullptr;   // 过滤器管道开关
+    AlarmPanel     *m_alarmPanel     = nullptr;   // 告警面板
+    SpectrumWidget *m_spectrumWidget = nullptr;   // 频谱分析
+    QDockWidget    *m_chartDock      = nullptr;   // 实时曲线面板
+    QDockWidget    *m_tableDock      = nullptr;   // 数据表格面板
+    QDockWidget    *m_playbackDock   = nullptr;   // 回放面板
+    QDockWidget    *m_alarmDock      = nullptr;   // 告警面板容器
+    QDockWidget    *m_spectrumDock   = nullptr;   // 频谱面板容器
 
 private slots:
     void onExportCsv();
@@ -69,8 +80,12 @@ private slots:
     void onDisconnect();
     void teardown();              // 全部拆光（仅 closeEvent 调用）
     void toggleTheme();           // 切换暗色/亮色主题
+    void restoreDefaultLayout();   // 恢复 Dock 默认布局
+    void savePipelineConfig();
+    void restorePipelineConfig();
     void onStart();
     void onStop();
+    void refreshAlarmConnection();
 };
 
 #endif // MAINWINDOW_H

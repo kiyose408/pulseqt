@@ -10,6 +10,7 @@
 #include <QWheelEvent>
 #include <QContextMenuEvent>
 #include "DataBuffer.h"
+#include "ChannelColors.h"
 class RealTimeChart : public QWidget {
     Q_OBJECT
 public:
@@ -39,6 +40,7 @@ private:
     void drawBackground(QPainter &p);           //网格＋坐标轴
     void drawCurves (QPainter &p);              //曲线
     void drawLegend(QPainter &p, int channels);  //图例
+    int  hitTestLegend(const QPoint &pos, int channels) const;  //点击图例返回通道号,-1=未命中
 
     DataBuffer *m_buffer = nullptr;
     QTimer *m_refreshTimer = nullptr;
@@ -56,7 +58,10 @@ private:
     qint64 m_currentTime = 0;           //回放参考时间（>0=回放模式）
     QPoint m_lastMousePos;
 
-    static const QColor CH_COLORS[16];
+    QVector<bool> m_chVisible;          // 通道显隐，默认全可见
+    QVector<double> m_chYMin, m_chYMax; // 每通道独立 Y 轴
+
+    // CH_COLORS 定义在 ChannelColors.h（与 SpectrumWidget 共享）
 
 };
 

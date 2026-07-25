@@ -115,6 +115,20 @@ bool DatabaseManager::init(const QString &dbPath)
     query.exec(
         "CREATE INDEX IF NOT EXISTS idx_timestamp ON data_points(timestamp)");
 
+    // 5. 告警记录表
+    query.exec(
+        "CREATE TABLE IF NOT EXISTS alarms ("
+        "  id        INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  timestamp INTEGER NOT NULL,"
+        "  channel   INTEGER NOT NULL,"
+        "  value     REAL,"
+        "  threshold REAL,"
+        "  is_upper  INTEGER,"
+        "  state     TEXT"
+        ")");
+    query.exec(
+        "CREATE INDEX IF NOT EXISTS idx_alarm_time ON alarms(timestamp)");
+
     qInfo() << "DatabaseManager: initialized" << dbPath;
     return true;
 }
@@ -283,4 +297,48 @@ uint64_t DatabaseManager::maxTimestamp() const
     if (query.next() && !query.value(0).isNull())
         return query.value(0).toULongLong();
     return 0;
+}
+
+//==============================================================================
+// 告警记录
+//==============================================================================
+
+void DatabaseManager::insertAlarm(int channel, double value, double threshold,
+                                   bool isUpper, const QString &state)
+{
+    QSqlQuery query(m_db);
+    query.prepare("INSERT INTO alarms(timestamp, channel, value, threshold, is_upper, state) "
+                  "VALUES (?, ?, ?, ?, ?, ?)");
+    query.addBindValue(static_cast<qint64>(QDateTime::currentMSecsSinceEpoch()));
+    query.addBindValue(channel);
+    query.addBindValue(value);
+    query.addBindValue(threshold);
+    query.addBindValue(isUpper ? 1 : 0);
+    query.addBindValue(state);
+    if (!query.exec())
+        qWarning() << "DatabaseManager: insertAlarm failed -" << query.lastError().text();
+}
+
+QVector<DatabaseManager::AlarmRecord> DatabaseManager::queryAlarms(qint64 from, qint64 to, int limit)
+{
+    QVector<AlarmRecord> records;
+    QSqlQuery query(m_db);
+    query.prepare("SELECT timestamp, channel, value, threshold, is_upper, state "
+                  "FROM alarms WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp DESC LIMIT ?");
+    query.addBindValue(from);
+    query.addBindValue(to);
+    query.addBindValue(limit);
+    if (!query.exec()) return records;
+
+    while (query.next()) {
+        AlarmRecord r;
+        r.ts    = query.value(0).toLongLong();
+        r.ch    = query.value(1).toInt();
+        r.val   = query.value(2).toDouble();
+        r.th    = query.value(3).toDouble();
+        r.upper = query.value(4).toInt() != 0;
+        r.state = query.value(5).toString();
+        records.append(r);
+    }
+    return records;
 }

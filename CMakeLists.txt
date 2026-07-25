@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 # 2. 定义项目名称为 PulseQt，版本号为 1.0.0，主要使用的编程语言是 C++
-project(PulseQt VERSION 1.1.0 LANGUAGES CXX)
+project(PulseQt VERSION 1.3.0 LANGUAGES CXX)
 
 # 3. 设置 C++ 编译标准为 C++17
 set(CMAKE_CXX_STANDARD 17)
@@ -56,6 +56,15 @@ qt_add_executable(PulseQt
     include/DataPoint.h
     include/DataBuffer.h
     src/data/DataBuffer.cpp
+    include/IFilter.h
+    include/FilterPipeline.h
+    src/data/FilterPipeline.cpp
+    include/MovingAverageFilter.h
+    src/data/MovingAverageFilter.cpp
+    include/MedianFilter.h
+    include/ThresholdAlarm.h
+    src/data/MedianFilter.cpp
+    src/data/ThresholdAlarm.cpp
     include/DatabaseManager.h
     src/data/DatabaseManager.cpp
     include/DataTableModel.h
@@ -67,6 +76,12 @@ qt_add_executable(PulseQt
     include/HistoryPlayer.h
     src/ui/HistoryPlayer.cpp
     include/ExportDialog.h
+    include/FilterConfigDialog.h
+    include/AlarmPanel.h
+    include/SpectrumWidget.h
+    src/ui/SpectrumWidget.cpp
+    src/ui/AlarmPanel.cpp
+    src/ui/FilterConfigDialog.cpp
     src/ui/ExportDialog.cpp
 )
 
@@ -75,6 +90,7 @@ target_include_directories(PulseQt PRIVATE include)
 
 # 8. 将前面找到的 5 个 Qt6 模块库链接到 PulseQt 可执行程序上
 target_link_libraries(PulseQt PRIVATE Qt6::Core Qt6::Widgets Qt6::SerialPort Qt6::Network Qt6::Sql)
+qt_add_resources(PulseQt "translations_rcc" PREFIX "/" BASE "resources/translations" FILES resources/translations/pulseqt_en.qm)
 
 # ═══════════════════════════════════════════════════════════
 # 测试
@@ -88,6 +104,10 @@ add_library(PulseQtTestLib STATIC
     src/protocol/ModbusDecoder.cpp
     src/protocol/ModbusMaster.cpp
     src/data/DataBuffer.cpp
+    src/data/FilterPipeline.cpp
+    src/data/MovingAverageFilter.cpp
+    src/data/MedianFilter.cpp
+    src/data/ThresholdAlarm.cpp
     src/data/DatabaseManager.cpp
     src/communication/ChannelManager.cpp
     src/communication/TcpChannel.cpp
@@ -100,6 +120,11 @@ add_library(PulseQtTestLib STATIC
     include/Frame.h
     include/DataBuffer.h
     include/DataPoint.h
+    include/IFilter.h
+    include/FilterPipeline.h
+    include/MovingAverageFilter.h
+    include/MedianFilter.h
+    include/ThresholdAlarm.h
     include/DatabaseManager.h
     include/IChannel.h
     include/ChannelManager.h
@@ -109,6 +134,7 @@ add_library(PulseQtTestLib STATIC
 )
 target_include_directories(PulseQtTestLib PRIVATE include)
 target_link_libraries(PulseQtTestLib PUBLIC Qt6::Core Qt6::Sql Qt6::Network)
+qt_add_resources(PulseQt "translations_rcc" PREFIX "/" BASE "resources/translations" FILES resources/translations/pulseqt_en.qm)
 
 # T022 — ProtocolDecoder + Frame 单元测试
 qt_add_executable(TestFrame
@@ -155,6 +181,7 @@ qt_add_executable(TestDatabaseManager
 target_include_directories(TestDatabaseManager PRIVATE include)
 target_include_directories(TestDatabaseManager PRIVATE ${CMAKE_BINARY_DIR}/TestDatabaseManager_autogen/include_$<CONFIG>)
 target_link_libraries(TestDatabaseManager PRIVATE PulseQtTestLib Qt6::Test Qt6::Sql)
+qt_add_resources(PulseQt "translations_rcc" PREFIX "/" BASE "resources/translations" FILES resources/translations/pulseqt_en.qm)
 add_test(NAME DatabaseManager COMMAND TestDatabaseManager)
 
 # T028 — ParseWorker 单元测试
@@ -164,6 +191,7 @@ qt_add_executable(TestParseWorker
 target_include_directories(TestParseWorker PRIVATE include)
 target_include_directories(TestParseWorker PRIVATE ${CMAKE_BINARY_DIR}/TestParseWorker_autogen/include_$<CONFIG>)
 target_link_libraries(TestParseWorker PRIVATE PulseQtTestLib Qt6::Test Qt6::Sql)
+qt_add_resources(PulseQt "translations_rcc" PREFIX "/" BASE "resources/translations" FILES resources/translations/pulseqt_en.qm)
 add_test(NAME ParseWorker COMMAND TestParseWorker)
 
 # T029 — ChannelManager 单元测试
@@ -184,8 +212,39 @@ target_include_directories(TestChannelRegistry PRIVATE ${CMAKE_BINARY_DIR}/TestC
 target_link_libraries(TestChannelRegistry PRIVATE PulseQtTestLib Qt6::Test)
 add_test(NAME ChannelRegistry COMMAND TestChannelRegistry)
 
+# T030 — MovingAverageFilter + MedianFilter 单元测试
+qt_add_executable(TestFilters
+    tests/TestFilters.cpp
+)
+target_include_directories(TestFilters PRIVATE include)
+target_include_directories(TestFilters PRIVATE ${CMAKE_BINARY_DIR}/TestFilters_autogen/include_$<CONFIG>)
+target_link_libraries(TestFilters PRIVATE PulseQtTestLib Qt6::Test)
+add_test(NAME Filters COMMAND TestFilters)
+
+qt_add_executable(TestThresholdAlarm
+    tests/TestThresholdAlarm.cpp
+)
+target_include_directories(TestThresholdAlarm PRIVATE include)
+target_include_directories(TestThresholdAlarm PRIVATE ${CMAKE_BINARY_DIR}/TestThresholdAlarm_autogen/include_$<CONFIG>)
+target_link_libraries(TestThresholdAlarm PRIVATE PulseQtTestLib Qt6::Test)
+add_test(NAME ThresholdAlarm COMMAND TestThresholdAlarm)
+
 # 测试运行时需 Qt DLL（Windows 专用）
 if(WIN32)
-    set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration ChannelManager ChannelRegistry ParseWorker PROPERTIES
+    set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration ChannelManager ChannelRegistry ParseWorker Filters ThresholdAlarm PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
+endif()
+
+# ═══════════════════════════════════════════════════════════
+# 文档 (T037)
+find_program(DOXYGEN_EXE doxygen)
+if(DOXYGEN_EXE)
+    add_custom_target(doc
+        COMMAND ${DOXYGEN_EXE} ${CMAKE_SOURCE_DIR}/doc/Doxyfile
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Generating API documentation..."
+    )
+    message(STATUS "Doxygen found: ${DOXYGEN_EXE} — target 'doc' available")
+else()
+    message(STATUS "Doxygen not found — install to enable 'doc' target")
 endif()

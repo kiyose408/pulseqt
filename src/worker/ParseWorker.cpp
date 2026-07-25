@@ -115,8 +115,9 @@ void ParseWorker::onFrameDecoded(const Frame &frame)
 
     if (!parseDataPayload(frame.payload, dp, isModbus)) return;
 
-    m_buffer.push(dp);
-    m_dbManager.insert(dp);
+    DataPoint filtered = m_pipeline.process(dp);
+    m_buffer.push(filtered);
+    m_dbManager.insert(filtered);
     emit dataPointReady();
 }
 
@@ -266,7 +267,19 @@ DatabaseManager *ParseWorker::dbManager()
     return &m_dbManager;
 }
 
+FilterPipeline *ParseWorker::pipeline()
+{
+    return &m_pipeline;
+}
+
 ParseWorker::~ParseWorker()
 {
+    // 停止所有定时器，防止析构期间触发回调访问半销毁状态
+    if (m_modbusMaster) {
+        m_modbusMaster->stop();
+        disconnect(m_modbusMaster, nullptr, this, nullptr);
+    }
+    if (m_heartbeatTimer)
+        m_heartbeatTimer->stop();
     m_dbManager.flush();
 }

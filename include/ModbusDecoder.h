@@ -10,6 +10,7 @@
 
 #include <QObject>
 #include <QByteArray>
+#include <QDebug>
 #include "Frame.h"
 
 class ModbusDecoder : public QObject

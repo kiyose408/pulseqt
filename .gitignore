@@ -75,3 +75,4 @@ docs/T016-*.md
 
 # 发布产物
 dist/
+doc/api/

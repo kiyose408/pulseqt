@@ -1,0 +1,23 @@
+# Doxyfile — PulseQt API 文档生成配置
+# 使用: cmake --build build --target doc (安装 doxygen 后)
+
+PROJECT_NAME           = "PulseQt"
+PROJECT_BRIEF          = "多通道数据采集上位机"
+OUTPUT_DIRECTORY       = doc/api
+INPUT                  = include src
+RECURSIVE              = YES
+OPTIMIZE_OUTPUT_FOR_C  = NO
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = NO
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+HAVE_DOT               = NO
+EXCLUDE                = build tests tools
+EXCLUDE_PATTERNS       = */moc_* */ui_* *.moc
