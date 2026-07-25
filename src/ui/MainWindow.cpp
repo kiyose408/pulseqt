@@ -115,16 +115,16 @@ void MainWindow::setDataBuffer(DataBuffer *buffer)
 void MainWindow::setupMenuBar()
 {
     // ── 文件 ──
-    QMenu *fileMenu = menuBar()->addMenu("文件(&F)");
-    fileMenu->addAction("导出 CSV...", this, &MainWindow::onExportCsv);
+    QMenu *fileMenu = menuBar()->addMenu(tr("文件(&F)"));
+    fileMenu->addAction(tr("导出 CSV..."), this, &MainWindow::onExportCsv);
     fileMenu->addSeparator();
-    fileMenu->addAction("退出(&Q)", this, &QWidget::close);
+    fileMenu->addAction(tr("退出(&Q)"), this, &QWidget::close);
 
     // ── 视图 ──
-    QMenu *viewMenu = menuBar()->addMenu("视图(&V)");
-    viewMenu->addAction("显示表格");
-    viewMenu->addAction("暗色主题", this, &MainWindow::toggleTheme);
-    m_filterAction = viewMenu->addAction("过滤器管道");
+    QMenu *viewMenu = menuBar()->addMenu(tr("视图(&V)"));
+    viewMenu->addAction(tr("显示表格"));
+    viewMenu->addAction(tr("暗色主题"), this, &MainWindow::toggleTheme);
+    m_filterAction = viewMenu->addAction(tr("过滤器管道"));
     m_filterAction->setCheckable(true);
     m_filterAction->setChecked(true);   // 默认启用（空管道直通）
     connect(m_filterAction, &QAction::toggled, this, [this](bool on) {
@@ -133,7 +133,7 @@ void MainWindow::setupMenuBar()
                                       Qt::QueuedConnection, Q_ARG(bool, on));
     });
     viewMenu->addSeparator();
-    viewMenu->addAction("配置过滤器...", this, [this]() {
+    viewMenu->addAction(tr("配置过滤器..."), this, [this]() {
         if (m_parseWorker) {
             FilterConfigDialog dlg(m_parseWorker->pipeline(), this);
             dlg.exec();
@@ -154,19 +154,30 @@ void MainWindow::setupMenuBar()
         connect(a, &QAction::toggled, dock, &QDockWidget::setVisible);
         connect(dock, &QDockWidget::visibilityChanged, a, &QAction::setChecked);
     };
-    addDockToggle("数据表格", m_tableDock);
-    addDockToggle("历史回放", m_playbackDock);
-    addDockToggle("告警面板", m_alarmDock);
-    addDockToggle("频谱分析", m_spectrumDock);
+    addDockToggle(tr("数据表格"), m_tableDock);
+    addDockToggle(tr("历史回放"), m_playbackDock);
+    addDockToggle(tr("告警面板"), m_alarmDock);
+    addDockToggle(tr("频谱分析"), m_spectrumDock);
 
     viewMenu->addSeparator();
-    viewMenu->addAction("恢复默认布局", this, [this]() {
+    viewMenu->addAction(tr("恢复默认布局"), this, [this]() {
         restoreDefaultLayout();
     });
 
+    viewMenu->addSeparator();
+    QAction *langAction = viewMenu->addAction("English");
+    langAction->setCheckable(true);
+    QSettings settings;
+    langAction->setChecked(settings.value("window/language") == "en");
+    connect(langAction, &QAction::toggled, this, [](bool en) {
+        QSettings s;
+        s.setValue("window/language", en ? "en" : "zh");
+        QMessageBox::information(nullptr, "Language", "Restart PulseQt to apply.");
+    });
+
     // ── 帮助 ──
-    QMenu *helpMenu = menuBar()->addMenu("帮助(&H)");
-    helpMenu->addAction("关于...", this, &MainWindow::onAbout);
+    QMenu *helpMenu = menuBar()->addMenu(tr("帮助(&H)"));
+    helpMenu->addAction(tr("关于..."), this, &MainWindow::onAbout);
 }
 
 //==============================================================================
@@ -176,11 +187,11 @@ void MainWindow::setupMenuBar()
 void MainWindow::setupToolBar()
 {
     QToolBar *tb = addToolBar("主工具栏");
-    tb->addAction("连接", this, &MainWindow::onConnect);
-    tb->addAction("断开", this, &MainWindow::onDisconnect);
+    tb->addAction(tr("连接"), this, &MainWindow::onConnect);
+    tb->addAction(tr("断开"), this, &MainWindow::onDisconnect);
     tb->addSeparator();
-    tb->addAction("开始", this, &MainWindow::onStart);
-    tb->addAction("停止", this, &MainWindow::onStop);
+    tb->addAction(tr("开始"), this, &MainWindow::onStart);
+    tb->addAction(tr("停止"), this, &MainWindow::onStop);
 }
 
 //==============================================================================
@@ -205,7 +216,7 @@ void MainWindow::setupCentralArea()
     connect(m_tableModel, &DataTableModel::dataRefreshed, this, [this]() {
         m_tableView->scrollToBottom();
     });
-    m_tableDock = new QDockWidget("数据表格", this);
+    m_tableDock = new QDockWidget(tr("数据表格"), this);
     m_tableDock->setWidget(m_tableView);
     m_tableDock->setObjectName("dockTable");
 
@@ -219,7 +230,7 @@ void MainWindow::setupCentralArea()
     pbLayout->setContentsMargins(0, 0, 0, 0);
     pbLayout->addWidget(m_playbackChart, 1);
     pbLayout->addWidget(m_historyPlayer);
-    m_playbackDock = new QDockWidget("历史回放", this);
+    m_playbackDock = new QDockWidget(tr("历史回放"), this);
     m_playbackDock->setWidget(playbackWidget);
     m_playbackDock->setObjectName("dockPlayback");
 
@@ -232,7 +243,7 @@ void MainWindow::setupCentralArea()
     // ── 频谱分析 ──
     m_spectrumWidget = new SpectrumWidget(this);
     m_spectrumWidget->setFFTSize(256);
-    m_spectrumDock = new QDockWidget("频谱分析", this);
+    m_spectrumDock = new QDockWidget(tr("频谱分析"), this);
     m_spectrumDock->setWidget(m_spectrumWidget);
     m_spectrumDock->setObjectName("dockSpectrum");
 

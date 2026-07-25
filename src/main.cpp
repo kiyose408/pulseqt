@@ -5,6 +5,8 @@
 #include <QApplication>
 #include <QMessageBox>
 #include <QThread>
+#include <QTranslator>
+#include <QSettings>
 #include "MainWindow.h"
 #include "Logger.h"
 
@@ -14,6 +16,21 @@ int main(int argc, char *argv[])
     app.setOrganizationName("PulseQt");
     app.setApplicationName("PulseQt");
     Logger::instance().init("app.log");
+
+    // 翻译
+    QSettings settings;
+    QString lang = settings.value("window/language", "zh").toString();
+    static QTranslator translator;
+    if (lang == "en") {
+        bool ok = translator.load(":/pulseqt_en.qm");
+        qInfo() << "Translator load:" << ok;
+        if (ok) {
+            app.installTranslator(&translator);
+            qInfo() << "Language: English loaded";
+        }
+    } else {
+        qInfo() << "Language: Chinese (default), lang=" << lang;
+    }
 
     // 注册 GUI 错误弹窗回调（ERROR / FATAL 级弹出 QMessageBox）
     Logger::instance().setErrorCallback([](const QString &msg) {

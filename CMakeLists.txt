@@ -90,6 +90,7 @@ target_include_directories(PulseQt PRIVATE include)
 
 # 8. 将前面找到的 5 个 Qt6 模块库链接到 PulseQt 可执行程序上
 target_link_libraries(PulseQt PRIVATE Qt6::Core Qt6::Widgets Qt6::SerialPort Qt6::Network Qt6::Sql)
+qt_add_resources(PulseQt "translations_rcc" PREFIX "/" BASE "resources/translations" FILES resources/translations/pulseqt_en.qm)
 
 # ═══════════════════════════════════════════════════════════
 # 测试
@@ -133,6 +134,7 @@ add_library(PulseQtTestLib STATIC
 )
 target_include_directories(PulseQtTestLib PRIVATE include)
 target_link_libraries(PulseQtTestLib PUBLIC Qt6::Core Qt6::Sql Qt6::Network)
+qt_add_resources(PulseQt "translations_rcc" PREFIX "/" BASE "resources/translations" FILES resources/translations/pulseqt_en.qm)
 
 # T022 — ProtocolDecoder + Frame 单元测试
 qt_add_executable(TestFrame
@@ -179,6 +181,7 @@ qt_add_executable(TestDatabaseManager
 target_include_directories(TestDatabaseManager PRIVATE include)
 target_include_directories(TestDatabaseManager PRIVATE ${CMAKE_BINARY_DIR}/TestDatabaseManager_autogen/include_$<CONFIG>)
 target_link_libraries(TestDatabaseManager PRIVATE PulseQtTestLib Qt6::Test Qt6::Sql)
+qt_add_resources(PulseQt "translations_rcc" PREFIX "/" BASE "resources/translations" FILES resources/translations/pulseqt_en.qm)
 add_test(NAME DatabaseManager COMMAND TestDatabaseManager)
 
 # T028 — ParseWorker 单元测试
@@ -188,6 +191,7 @@ qt_add_executable(TestParseWorker
 target_include_directories(TestParseWorker PRIVATE include)
 target_include_directories(TestParseWorker PRIVATE ${CMAKE_BINARY_DIR}/TestParseWorker_autogen/include_$<CONFIG>)
 target_link_libraries(TestParseWorker PRIVATE PulseQtTestLib Qt6::Test Qt6::Sql)
+qt_add_resources(PulseQt "translations_rcc" PREFIX "/" BASE "resources/translations" FILES resources/translations/pulseqt_en.qm)
 add_test(NAME ParseWorker COMMAND TestParseWorker)
 
 # T029 — ChannelManager 单元测试
