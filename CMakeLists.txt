@@ -230,3 +230,17 @@ if(WIN32)
     set_tests_properties(Frame ProtocolDecoder DataBuffer DatabaseManager Integration ChannelManager ChannelRegistry ParseWorker Filters ThresholdAlarm PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:D:/Qt/6.9.0/msvc2022_64/bin")
 endif()
+
+# ═══════════════════════════════════════════════════════════
+# 文档 (T037)
+find_program(DOXYGEN_EXE doxygen)
+if(DOXYGEN_EXE)
+    add_custom_target(doc
+        COMMAND ${DOXYGEN_EXE} ${CMAKE_SOURCE_DIR}/doc/Doxyfile
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Generating API documentation..."
+    )
+    message(STATUS "Doxygen found: ${DOXYGEN_EXE} — target 'doc' available")
+else()
+    message(STATUS "Doxygen not found — install to enable 'doc' target")
+endif()
