@@ -20,6 +20,13 @@
 #include <QVector>
 #include "IFilter.h"
 
+/**
+ * @brief 阈值告警引擎（QObject + IFilter 多重继承）
+ *
+ * 状态机：Normal → AboveUpper/BelowLower → Normal（滞回恢复）
+ * 只在状态切换瞬间发射信号，滞回带内不反复触发。
+ * process() 纯透传，不修改数据。
+ */
 class ThresholdAlarm : public QObject, public IFilter
 {
     Q_OBJECT
@@ -33,21 +40,27 @@ public:
     bool       isEnabled() const override { return m_enabled; }
     void       setEnabled(bool on) override { m_enabled = on; }
 
-    // ── 阈值配置（0 = 禁用该告警） ──
+    /// @brief 设置通道上限（0=禁用）
     void setUpperLimit(int ch, double val);
+    /// @brief 设置通道下限（0=禁用）
     void setLowerLimit(int ch, double val);
     double upperLimit(int ch) const;
     double lowerLimit(int ch) const;
 
-    // ── 滞回 ──
+    /// @brief 全局滞回宽度，默认 2.0
     void   setHysteresis(double h) { m_hysteresis = h; }
     double hysteresis() const { return m_hysteresis; }
 
 signals:
-    // 告警触发：channel=通道, value=越限值, threshold=阈值, isUpper=超上限/低下限
+    /// @brief 告警触发
+    /// @param channel 通道号
+    /// @param value 越限值
+    /// @param threshold 阈值
+    /// @param isUpper true=超上限, false=低下限
     void alarmTriggered(int channel, double value, double threshold, bool isUpper);
 
-    // 告警清除
+    /// @brief 告警清除
+    /// @param channel 通道号
     void alarmCleared(int channel);
 
 private:
@@ -65,7 +78,7 @@ private:
     QVector<ChannelConfig> m_configs;
     QVector<State>         m_states;
 
-    double m_hysteresis = 2.0;   // 全局滞回带宽度
+    double m_hysteresis = 2.0;
     bool   m_enabled    = true;
 };
 
