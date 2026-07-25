@@ -15,19 +15,36 @@
 #include "IFilter.h"
 #include <QVector>
 
+/**
+ * @brief 滑动平均 / EMA 指数加权移动平均过滤器
+ *
+ * 两种模式：
+ * - Simple: 环形缓冲窗口内所有值等权重求平均
+ * - EMA: alpha=2/(N+1)，对最近值更敏感，适合跟踪趋势变化的信号
+ *
+ * 每通道独立维护历史缓冲，自适应通道数扩容。
+ */
 class MovingAverageFilter : public IFilter
 {
 public:
     enum Mode { Simple, EMA };
 
+    /// @brief 构造
+    /// @param windowSize 窗口大小（默认 5，最小 2）
+    /// @param mode 模式（Simple 或 EMA）
     explicit MovingAverageFilter(int windowSize = 5, Mode mode = Simple);
 
+    /// @brief 过滤一个数据点，返回平滑后的值
+    /// @param dp 原始数据点
+    /// @return 过滤后的数据点（未选中通道原值保留）
     DataPoint process(const DataPoint &dp) override;
     QString    name()    const override;
     bool       isEnabled() const override { return m_enabled; }
     void       setEnabled(bool on) override { m_enabled = on; }
 
+    /// @brief 返回窗口大小
     int  windowSize() const { return m_windowSize; }
+    /// @brief 返回当前模式
     Mode mode()       const { return m_mode; }
 
 private:

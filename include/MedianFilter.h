@@ -15,11 +15,22 @@
 #include "IFilter.h"
 #include <QVector>
 
+/**
+ * @brief 中值滤波器，剔除脉冲式野值
+ *
+ * 每通道维护最近 N 个值的滑动窗口，取中位数输出。
+ * 窗口 [10, 10, 10, 10, 999] → 中位数 10，野值 999 被丢弃。
+ */
 class MedianFilter : public IFilter
 {
 public:
+    /// @brief 构造
+    /// @param windowSize 窗口大小（默认 5，最小 3）
     explicit MedianFilter(int windowSize = 5);
 
+    /// @brief 过滤一个数据点
+    /// @param dp 原始数据点
+    /// @return 过滤后的数据点
     DataPoint process(const DataPoint &dp) override;
     QString    name()    const override;
     bool       isEnabled() const override { return m_enabled; }
@@ -30,9 +41,7 @@ public:
 private:
     int  m_windowSize;
     bool m_enabled = true;
-
-    // [channel] → 最近 N 个值的有序历史
-    QVector<QVector<double>> m_history;
+    QVector<QVector<double>> m_history;  // [channel] → 最近 N 个值
 };
 
 #endif // MEDIANFILTER_H
