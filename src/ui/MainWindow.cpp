@@ -249,11 +249,10 @@ void MainWindow::setupCentralArea()
 
     // ── 添加所有 Dock ──
     addDockWidget(Qt::LeftDockWidgetArea,  m_chartDock);
-    splitDockWidget(m_chartDock, m_tableDock, Qt::Horizontal);
+    splitDockWidget(m_chartDock, m_spectrumDock, Qt::Horizontal);
+    splitDockWidget(m_spectrumDock, m_alarmDock, Qt::Vertical);
     splitDockWidget(m_chartDock, m_playbackDock, Qt::Vertical);
-    splitDockWidget(m_tableDock, m_alarmDock, Qt::Vertical);
-    splitDockWidget(m_alarmDock, m_spectrumDock, Qt::Horizontal);
-    splitDockWidget(m_alarmDock, m_spectrumDock, Qt::Horizontal);
+    splitDockWidget(m_playbackDock, m_tableDock, Qt::Horizontal);
 
     // ── Dock 属性 ──
     m_chartDock->setFeatures(QDockWidget::DockWidgetMovable |
@@ -536,16 +535,15 @@ void MainWindow::restoreDefaultLayout()
     removeDockWidget(m_spectrumDock);
 
     addDockWidget(Qt::LeftDockWidgetArea, m_chartDock);
-    splitDockWidget(m_chartDock, m_tableDock, Qt::Horizontal);
+    splitDockWidget(m_chartDock, m_spectrumDock, Qt::Horizontal);
     splitDockWidget(m_chartDock, m_playbackDock, Qt::Vertical);
-    splitDockWidget(m_tableDock, m_alarmDock, Qt::Vertical);
-    splitDockWidget(m_alarmDock, m_spectrumDock, Qt::Horizontal);
-    splitDockWidget(m_alarmDock, m_spectrumDock, Qt::Horizontal);
+    splitDockWidget(m_spectrumDock, m_alarmDock, Qt::Vertical);
+    splitDockWidget(m_playbackDock, m_tableDock, Qt::Horizontal);
 
-    m_tableDock->show();
     m_playbackDock->show();
     m_alarmDock->show();
     m_spectrumDock->show();
+    m_tableDock->show();
 }
 
 void MainWindow::savePipelineConfig()
