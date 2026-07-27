@@ -42,31 +42,6 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
-    QSettings settings;
-    settings.setValue("window/geometry", saveGeometry());
-    settings.setValue("window/dockState", saveState(2));
-    settings.setValue("window/darkTheme", m_darkTheme);
-    if (m_chart) settings.setValue("window/timeWindow", m_chart->timeWindow());
-    savePipelineConfig();
-    // 保存过滤器管道配置
-    if (m_parseWorker) {
-        QStringList filterDescs;
-        auto *pipe = m_parseWorker->pipeline();
-        for (int i = 0; i < pipe->count(); ++i) {
-            auto *f = pipe->filterAt(i);
-            if (!f) continue;
-            QString desc = f->name();
-            auto chs = f->channels();
-            if (!chs.isEmpty()) {
-                QStringList sl;
-                for (int c : chs) sl << QString::number(c);
-                desc += "::" + sl.join(",");
-            }
-            filterDescs << desc;
-        }
-        settings.setValue("pipeline/filters", filterDescs);
-    }
-
     teardown();
 }
 
@@ -78,24 +53,6 @@ void MainWindow::closeEvent(QCloseEvent *event)
     settings.setValue("window/darkTheme", m_darkTheme);
     if (m_chart) settings.setValue("window/timeWindow", m_chart->timeWindow());
     savePipelineConfig();
-    // 保存过滤器管道配置
-    if (m_parseWorker) {
-        QStringList filterDescs;
-        auto *pipe = m_parseWorker->pipeline();
-        for (int i = 0; i < pipe->count(); ++i) {
-            auto *f = pipe->filterAt(i);
-            if (!f) continue;
-            QString desc = f->name();
-            auto chs = f->channels();
-            if (!chs.isEmpty()) {
-                QStringList sl;
-                for (int c : chs) sl << QString::number(c);
-                desc += "::" + sl.join(",");
-            }
-            filterDescs << desc;
-        }
-        settings.setValue("pipeline/filters", filterDescs);
-    }
 
     teardown();
     event->accept();
