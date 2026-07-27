@@ -306,10 +306,17 @@ uint64_t DatabaseManager::maxTimestamp() const
 void DatabaseManager::insertAlarm(int channel, double value, double threshold,
                                    bool isUpper, const QString &state)
 {
+    // 限流：200ms 内最多 5 条（防告警洪流冲垮 SQLite）
+    static qint64 batchStart = 0;
+    static int batchCount = 0;
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - batchStart > 200) { batchStart = now; batchCount = 0; }
+    if (++batchCount > 5) return;
+
     QSqlQuery query(m_db);
     query.prepare("INSERT INTO alarms(timestamp, channel, value, threshold, is_upper, state) "
                   "VALUES (?, ?, ?, ?, ?, ?)");
-    query.addBindValue(static_cast<qint64>(QDateTime::currentMSecsSinceEpoch()));
+    query.addBindValue(static_cast<qint64>(now));
     query.addBindValue(channel);
     query.addBindValue(value);
     query.addBindValue(threshold);

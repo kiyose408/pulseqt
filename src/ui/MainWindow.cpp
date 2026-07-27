@@ -192,7 +192,7 @@ void MainWindow::setupCentralArea()
     m_playbackDock->setObjectName("dockPlayback");
 
     // ── 告警面板 ──
-    m_alarmPanel = new AlarmPanel(nullptr, this);
+    m_alarmPanel = new AlarmPanel(this);
     m_alarmDock = new QDockWidget("告警", this);
     m_alarmDock->setWidget(m_alarmPanel);
     m_alarmDock->setObjectName("dockAlarm");
@@ -471,14 +471,24 @@ void MainWindow::refreshAlarmConnection()
         if (!f || f->name() != "ThresholdAlarm") continue;
         auto *alarm = static_cast<ThresholdAlarm*>(f);
 
-        // 跨线程 QueuedConnection：解析线程 → UI 线程
+        // UI 面板连接（QueuedConnection → UI 线程）
         connect(alarm, &ThresholdAlarm::alarmTriggered,
                 m_alarmPanel, &AlarmPanel::onAlarmTriggered,
                 Qt::QueuedConnection);
         connect(alarm, &ThresholdAlarm::alarmCleared,
                 m_alarmPanel, &AlarmPanel::onAlarmCleared,
                 Qt::QueuedConnection);
-        m_alarmPanel->setDatabase(m_parseWorker->dbManager());
+
+        // DB 写入连接（DirectConnection → 同线程 ParseWorker，安全）
+        auto *db = m_parseWorker->dbManager();
+        connect(alarm, &ThresholdAlarm::alarmTriggered, this,
+                [db](int ch, double val, double th, bool upper) {
+                    db->insertAlarm(ch, val, th, upper, "triggered");
+                }, Qt::DirectConnection);
+        connect(alarm, &ThresholdAlarm::alarmCleared, this,
+                [db](int ch) {
+                    db->insertAlarm(ch, 0, 0, false, "cleared");
+                }, Qt::DirectConnection);
         break;
     }
 }
