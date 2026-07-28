@@ -73,8 +73,11 @@ void HistoryPlayer::loadTimeRange()
 
     m_timeBegin = m_db.minTimestamp();
     m_timeEnd   = m_db.maxTimestamp();
+    qInfo() << "HistoryPlayer: loadTimeRange begin=" << m_timeBegin
+            << "end=" << m_timeEnd << "rows=" << m_db.rowCount();
 
     if (m_timeEnd <= m_timeBegin) {
+        qInfo() << "HistoryPlayer: no data yet, disabled";
         setEnabled(false);
         return;
     }
@@ -96,6 +99,7 @@ void HistoryPlayer::refreshLatest()
 
     // 滑块尚未启用（DB 从空 → 有数据）→ 完整初始化
     if (!isEnabled()) {
+        qInfo() << "HistoryPlayer: refreshLatest detected data, reloading";
         loadTimeRange();
         return;
     }

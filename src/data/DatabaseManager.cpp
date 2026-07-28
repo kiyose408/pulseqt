@@ -72,8 +72,12 @@ DatabaseManager::~DatabaseManager()
 
 bool DatabaseManager::init(const QString &dbPath)
 {
-    // 1. 创建 SQLite 连接（命名连接，防止多实例冲突）
-    m_db = QSqlDatabase::addDatabase("QSQLITE", m_connectionName);
+    // 1. 创建或复用 SQLite 连接
+    if (QSqlDatabase::contains(m_connectionName)) {
+        m_db = QSqlDatabase::database(m_connectionName);
+    } else {
+        m_db = QSqlDatabase::addDatabase("QSQLITE", m_connectionName);
+    }
     m_db.setDatabaseName(dbPath);
 
     if (!m_db.open()) {
@@ -293,9 +297,12 @@ uint64_t DatabaseManager::minTimestamp() const
 uint64_t DatabaseManager::maxTimestamp() const
 {
     QSqlQuery query(m_db);
-    query.exec("SELECT MAX(timestamp) FROM data_points");
-    if (query.next() && !query.value(0).isNull())
-        return query.value(0).toULongLong();
+    query.exec("SELECT MAX(CAST(timestamp AS INTEGER)) FROM data_points");
+    if (query.next() && !query.value(0).isNull()) {
+        bool ok;
+        uint64_t v = query.value(0).toULongLong(&ok);
+        return ok ? v : 0;
+    }
     return 0;
 }
 
