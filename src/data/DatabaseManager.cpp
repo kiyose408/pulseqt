@@ -72,8 +72,12 @@ DatabaseManager::~DatabaseManager()
 
 bool DatabaseManager::init(const QString &dbPath)
 {
-    // 1. 创建 SQLite 连接（命名连接，防止多实例冲突）
-    m_db = QSqlDatabase::addDatabase("QSQLITE", m_connectionName);
+    // 1. 创建或复用 SQLite 连接
+    if (QSqlDatabase::contains(m_connectionName)) {
+        m_db = QSqlDatabase::database(m_connectionName);
+    } else {
+        m_db = QSqlDatabase::addDatabase("QSQLITE", m_connectionName);
+    }
     m_db.setDatabaseName(dbPath);
 
     if (!m_db.open()) {
@@ -293,9 +297,12 @@ uint64_t DatabaseManager::minTimestamp() const
 uint64_t DatabaseManager::maxTimestamp() const
 {
     QSqlQuery query(m_db);
-    query.exec("SELECT MAX(timestamp) FROM data_points");
-    if (query.next() && !query.value(0).isNull())
-        return query.value(0).toULongLong();
+    query.exec("SELECT MAX(CAST(timestamp AS INTEGER)) FROM data_points");
+    if (query.next() && !query.value(0).isNull()) {
+        bool ok;
+        uint64_t v = query.value(0).toULongLong(&ok);
+        return ok ? v : 0;
+    }
     return 0;
 }
 
@@ -306,10 +313,17 @@ uint64_t DatabaseManager::maxTimestamp() const
 void DatabaseManager::insertAlarm(int channel, double value, double threshold,
                                    bool isUpper, const QString &state)
 {
+    // 限流：200ms 内最多 5 条（防告警洪流冲垮 SQLite）
+    static qint64 batchStart = 0;
+    static int batchCount = 0;
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - batchStart > 200) { batchStart = now; batchCount = 0; }
+    if (++batchCount > 5) return;
+
     QSqlQuery query(m_db);
     query.prepare("INSERT INTO alarms(timestamp, channel, value, threshold, is_upper, state) "
                   "VALUES (?, ?, ?, ?, ?, ?)");
-    query.addBindValue(static_cast<qint64>(QDateTime::currentMSecsSinceEpoch()));
+    query.addBindValue(static_cast<qint64>(now));
     query.addBindValue(channel);
     query.addBindValue(value);
     query.addBindValue(threshold);

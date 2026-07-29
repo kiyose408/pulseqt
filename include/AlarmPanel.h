@@ -17,7 +17,6 @@
 #include <QMap>
 #include <QPair>
 
-class DatabaseManager;
 
 /**
  * @brief 告警面板
@@ -32,8 +31,7 @@ class AlarmPanel : public QWidget
 
 public:
     /// @param db DatabaseManager 指针（用于写入 alarms 表）
-    explicit AlarmPanel(DatabaseManager *db, QWidget *parent = nullptr);
-    void setDatabase(DatabaseManager *db) { m_db = db; }
+    explicit AlarmPanel(QWidget *parent = nullptr);
 
 public slots:
     /// @brief 告警触发槽
@@ -56,7 +54,6 @@ private:
     QLabel           *m_countLabel;
     QTimer           *m_blinkTimer;
     bool              m_blinkOn = true;
-    DatabaseManager  *m_db;
     int               m_totalTriggered = 0;
 
     // 限流：key=(channel, isUpper) → 上次触发时间

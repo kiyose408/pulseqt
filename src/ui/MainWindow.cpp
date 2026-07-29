@@ -42,31 +42,6 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
-    QSettings settings;
-    settings.setValue("window/geometry", saveGeometry());
-    settings.setValue("window/dockState", saveState(2));
-    settings.setValue("window/darkTheme", m_darkTheme);
-    if (m_chart) settings.setValue("window/timeWindow", m_chart->timeWindow());
-    savePipelineConfig();
-    // 保存过滤器管道配置
-    if (m_parseWorker) {
-        QStringList filterDescs;
-        auto *pipe = m_parseWorker->pipeline();
-        for (int i = 0; i < pipe->count(); ++i) {
-            auto *f = pipe->filterAt(i);
-            if (!f) continue;
-            QString desc = f->name();
-            auto chs = f->channels();
-            if (!chs.isEmpty()) {
-                QStringList sl;
-                for (int c : chs) sl << QString::number(c);
-                desc += "::" + sl.join(",");
-            }
-            filterDescs << desc;
-        }
-        settings.setValue("pipeline/filters", filterDescs);
-    }
-
     teardown();
 }
 
@@ -78,24 +53,6 @@ void MainWindow::closeEvent(QCloseEvent *event)
     settings.setValue("window/darkTheme", m_darkTheme);
     if (m_chart) settings.setValue("window/timeWindow", m_chart->timeWindow());
     savePipelineConfig();
-    // 保存过滤器管道配置
-    if (m_parseWorker) {
-        QStringList filterDescs;
-        auto *pipe = m_parseWorker->pipeline();
-        for (int i = 0; i < pipe->count(); ++i) {
-            auto *f = pipe->filterAt(i);
-            if (!f) continue;
-            QString desc = f->name();
-            auto chs = f->channels();
-            if (!chs.isEmpty()) {
-                QStringList sl;
-                for (int c : chs) sl << QString::number(c);
-                desc += "::" + sl.join(",");
-            }
-            filterDescs << desc;
-        }
-        settings.setValue("pipeline/filters", filterDescs);
-    }
 
     teardown();
     event->accept();
@@ -224,7 +181,6 @@ void MainWindow::setupCentralArea()
     m_playbackChart = new RealTimeChart(this);
     m_playbackChart->setMinimumHeight(100);
     m_historyPlayer = new HistoryPlayer(this);
-    m_historyPlayer->setMaximumHeight(50);
     QWidget *playbackWidget = new QWidget(this);
     QVBoxLayout *pbLayout = new QVBoxLayout(playbackWidget);
     pbLayout->setContentsMargins(0, 0, 0, 0);
@@ -235,7 +191,7 @@ void MainWindow::setupCentralArea()
     m_playbackDock->setObjectName("dockPlayback");
 
     // ── 告警面板 ──
-    m_alarmPanel = new AlarmPanel(nullptr, this);
+    m_alarmPanel = new AlarmPanel(this);
     m_alarmDock = new QDockWidget("告警", this);
     m_alarmDock->setWidget(m_alarmPanel);
     m_alarmDock->setObjectName("dockAlarm");
@@ -249,11 +205,10 @@ void MainWindow::setupCentralArea()
 
     // ── 添加所有 Dock ──
     addDockWidget(Qt::LeftDockWidgetArea,  m_chartDock);
-    splitDockWidget(m_chartDock, m_tableDock, Qt::Horizontal);
+    splitDockWidget(m_chartDock, m_spectrumDock, Qt::Horizontal);
+    splitDockWidget(m_spectrumDock, m_alarmDock, Qt::Vertical);
     splitDockWidget(m_chartDock, m_playbackDock, Qt::Vertical);
-    splitDockWidget(m_tableDock, m_alarmDock, Qt::Vertical);
-    splitDockWidget(m_alarmDock, m_spectrumDock, Qt::Horizontal);
-    splitDockWidget(m_alarmDock, m_spectrumDock, Qt::Horizontal);
+    splitDockWidget(m_playbackDock, m_tableDock, Qt::Horizontal);
 
     // ── Dock 属性 ──
     m_chartDock->setFeatures(QDockWidget::DockWidgetMovable |
@@ -515,14 +470,24 @@ void MainWindow::refreshAlarmConnection()
         if (!f || f->name() != "ThresholdAlarm") continue;
         auto *alarm = static_cast<ThresholdAlarm*>(f);
 
-        // 跨线程 QueuedConnection：解析线程 → UI 线程
+        // UI 面板连接（QueuedConnection → UI 线程）
         connect(alarm, &ThresholdAlarm::alarmTriggered,
                 m_alarmPanel, &AlarmPanel::onAlarmTriggered,
                 Qt::QueuedConnection);
         connect(alarm, &ThresholdAlarm::alarmCleared,
                 m_alarmPanel, &AlarmPanel::onAlarmCleared,
                 Qt::QueuedConnection);
-        m_alarmPanel->setDatabase(m_parseWorker->dbManager());
+
+        // DB 写入连接（DirectConnection → 同线程 ParseWorker，安全）
+        auto *db = m_parseWorker->dbManager();
+        connect(alarm, &ThresholdAlarm::alarmTriggered, this,
+                [db](int ch, double val, double th, bool upper) {
+                    db->insertAlarm(ch, val, th, upper, "triggered");
+                }, Qt::DirectConnection);
+        connect(alarm, &ThresholdAlarm::alarmCleared, this,
+                [db](int ch) {
+                    db->insertAlarm(ch, 0, 0, false, "cleared");
+                }, Qt::DirectConnection);
         break;
     }
 }
@@ -536,16 +501,15 @@ void MainWindow::restoreDefaultLayout()
     removeDockWidget(m_spectrumDock);
 
     addDockWidget(Qt::LeftDockWidgetArea, m_chartDock);
-    splitDockWidget(m_chartDock, m_tableDock, Qt::Horizontal);
+    splitDockWidget(m_chartDock, m_spectrumDock, Qt::Horizontal);
     splitDockWidget(m_chartDock, m_playbackDock, Qt::Vertical);
-    splitDockWidget(m_tableDock, m_alarmDock, Qt::Vertical);
-    splitDockWidget(m_alarmDock, m_spectrumDock, Qt::Horizontal);
-    splitDockWidget(m_alarmDock, m_spectrumDock, Qt::Horizontal);
+    splitDockWidget(m_spectrumDock, m_alarmDock, Qt::Vertical);
+    splitDockWidget(m_playbackDock, m_tableDock, Qt::Horizontal);
 
-    m_tableDock->show();
     m_playbackDock->show();
     m_alarmDock->show();
     m_spectrumDock->show();
+    m_tableDock->show();
 }
 
 void MainWindow::savePipelineConfig()

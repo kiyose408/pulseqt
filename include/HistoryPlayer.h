@@ -1,87 +1,122 @@
 //==============================================================================
-// HistoryPlayer — 历史数据回放
-//==============================================================================
-//
-// 功能：QSlider 时间轴 + 播放/暂停 + 速度调节 + 独立 DataBuffer。
-//
-// 架构：使用独立的 DatabaseManager 连接（只读），
-// 查询结果写入 m_playbackBuffer，RealTimeChart 绑定后显示。
-// 与实时采集的 DataBuffer 完全隔离。
+// HistoryPlayer — 历史数据回放 v2
 //==============================================================================
 
 #ifndef HISTORYPLAYER_H
 #define HISTORYPLAYER_H
 
 #include <QWidget>
-#include <QSlider>
 #include <QLabel>
 #include <QPushButton>
 #include <QComboBox>
+#include <QDateEdit>
+#include <QTimeEdit>
 #include <QTimer>
+#include <QPainter>
+#include <QMouseEvent>
 #include "DatabaseManager.h"
 #include "DataBuffer.h"
 
-/// @brief 历史数据回放控件
-///
-/// 滑块选择时间 → 从 SQLite 查询 → 填充独立 DataBuffer → 联动 RealTimeChart。
-/// 速度 1x/2x/5x/10x，播放定时器按速度倍率推进滑块。
+/// @brief 数据段进度条（自绘 QWidget，支持无限缩放）
+class SegmentBar : public QWidget
+{
+    Q_OBJECT
+public:
+    explicit SegmentBar(QWidget *parent = nullptr) : QWidget(parent) {
+        setMinimumHeight(18);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    }
+    void setDataSlots(const QVector<int> &s) { m_slots = s; update(); }
+    void setCurrentSlot(int s) { m_curSlot = s; update(); }
+
+signals:
+    void clicked(int slotIndex);
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter p(this);
+        int w = width(), h = height();
+        if (w <= 0) return;
+        double sw = (double)w / 96;
+        for (int i = 0; i < 96; ++i) {
+            QColor c;
+            if (i == m_curSlot) c = QColor(0x4C, 0xB4, 0xE6);
+            else if (i < m_slots.size() && m_slots[i] > 0) c = QColor(0x73, 0xC8, 0x73);
+            else c = QColor(0xE0, 0xE0, 0xE0);
+            p.fillRect(QRectF(i * sw, 0, sw, h), c);
+        }
+        p.setPen(QPen(QColor(0xCC, 0xCC, 0xCC), 1));
+        for (int hh : {0, 6, 12, 18})
+            p.drawLine(QPointF(hh * sw * 4, 0), QPointF(hh * sw * 4, h));
+    }
+    void mousePressEvent(QMouseEvent *e) override {
+        int w = width();
+        if (w > 0) emit clicked(e->pos().x() * 96 / w);
+    }
+private:
+    QVector<int> m_slots;
+    int m_curSlot = 0;
+};
+
+// ═══════════════════════════════════════════════════════════
+
 class HistoryPlayer : public QWidget
 {
     Q_OBJECT
 public:
     explicit HistoryPlayer(QWidget *parent = nullptr);
 
-    /// @brief 设置 SQLite 数据库路径（独立只读连接）
     void setDbPath(const QString &path);
-    /// @brief 设置实时数据缓冲引用（用于时间范围更新）
     void setDataBuffer(DataBuffer *buffer);
-    /// @brief 绑定回放图表
     void setChart(class RealTimeChart *chart);
-    /// @brief 设置查询时间窗口，与图表默认一致
     void setTimeWindow(double seconds);
 
-    /// @brief 从数据库加载时间范围，设置滑块上下限
     void loadTimeRange();
-    /// @brief 刷新最新时间（不改变滑块位置）
     void refreshLatest();
-    /// @brief 更新时间标签显示
     void updateTimeLabel();
-    /// @brief 查询 centerTime 附近的数据并填充回放缓冲区
-    /// @param centerTime 查询中心时间戳
     void queryAndShow(uint64_t centerTime);
-
-    /// @brief 返回回放专用 DataBuffer（与实时采集隔离）
     DataBuffer *playbackBuffer() { return &m_playbackBuffer; }
 
 signals:
-    /// @brief 开始回放（拖滑块或点播放）
     void playbackStarted();
-    /// @brief 停止回放
     void playbackStopped();
 
 private slots:
-    void onSliderMoved(int value);
     void onPlayPause();
     void onPlayTick();
+    void onDateChanged(const QDate &date);
+    void onLocateTime();
+    void onSegmentClicked(int slotIndex);
 
 private:
-    QSlider      *m_slider;
+    void refreshSegmentBar();
+    void loadDayDistribution(qint64 dayStart, qint64 dayEnd);
+
+    QDateEdit    *m_dateEdit;
+    QTimeEdit    *m_timeEdit;
+    QPushButton  *m_locateBtn;
+    SegmentBar   *m_segmentBar;
     QLabel       *m_timeLabel;
     QPushButton  *m_playBtn;
     QComboBox    *m_speedCombo;
     QTimer       *m_playTimer;
     QTimer       *m_refreshTimer;
 
-    DatabaseManager  m_db;                // 独立 SQLite 连接（只读）
+    DatabaseManager  m_db;
     RealTimeChart   *m_chart = nullptr;
     DataBuffer       m_playbackBuffer{10000};
     DataBuffer      *m_buffer = nullptr;
+
     uint64_t m_timeBegin  = 0;
     uint64_t m_timeEnd    = 0;
     uint64_t m_currentTime = 0;
     bool     m_playing     = false;
     int      m_speed       = 1;
     double   m_timeWindow  = 30.0;
+
+    static constexpr int SLOT_COUNT = 96;
+    QVector<int> m_dataSlots;
+    qint64 m_currentDayStart = 0;
 };
 
 #endif // HISTORYPLAYER_H

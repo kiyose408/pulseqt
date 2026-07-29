@@ -1,18 +1,15 @@
 //==============================================================================
-// AlarmPanel 实现 — 抗压版
-//
-// 限流策略：同通道同方向告警 1s 内只记第一条 + 最后一条
+// AlarmPanel 实现 — 纯 UI（DB 写入由 ParseWorker 线程处理）
 //==============================================================================
 
 #include "AlarmPanel.h"
-#include "DatabaseManager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QDateTime>
 
-AlarmPanel::AlarmPanel(DatabaseManager *db, QWidget *parent)
-    : QWidget(parent), m_db(db)
+AlarmPanel::AlarmPanel(QWidget *parent)
+    : QWidget(parent)
 {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(4, 4, 4, 4);
@@ -45,16 +42,14 @@ AlarmPanel::AlarmPanel(DatabaseManager *db, QWidget *parent)
 
 void AlarmPanel::onAlarmTriggered(int channel, double value, double threshold, bool isUpper)
 {
-    // 限流：同通道同方向 1s 内去重
     auto key = qMakePair(channel, isUpper);
     auto now = QDateTime::currentMSecsSinceEpoch();
     if (m_lastTrigger.contains(key) && (now - m_lastTrigger[key]) < 1000) {
-        m_pendingDedup[key] = value;  // 记录最新值
+        m_pendingDedup[key] = value;
         return;
     }
     m_lastTrigger[key] = now;
 
-    // 刷新去重期间的最终值
     if (m_pendingDedup.contains(key)) {
         value = m_pendingDedup.take(key);
     }
@@ -74,15 +69,12 @@ void AlarmPanel::onAlarmTriggered(int channel, double value, double threshold, b
 
     m_totalTriggered++;
     m_countLabel->setText(QString("告警: %1").arg(m_totalTriggered));
-
-    if (m_db)
-        m_db->insertAlarm(channel, value, threshold, isUpper, "triggered");
 }
 
 void AlarmPanel::onAlarmCleared(int channel)
 {
-    auto key = qMakePair(channel, true);   // 清除上限
-    auto key2 = qMakePair(channel, false);  // 清除下限
+    auto key = qMakePair(channel, true);
+    auto key2 = qMakePair(channel, false);
     m_lastTrigger.remove(key);
     m_lastTrigger.remove(key2);
     m_pendingDedup.remove(key);
@@ -97,7 +89,6 @@ void AlarmPanel::onAlarmCleared(int channel)
     if (m_totalTriggered > 0) m_totalTriggered--;
     m_countLabel->setText(QString("告警: %1").arg(m_totalTriggered));
 
-    // 全部清除 → 恢复绿色
     bool anyActive = false;
     for (auto it = m_lastTrigger.begin(); it != m_lastTrigger.end(); ++it) {
         if (QDateTime::currentMSecsSinceEpoch() - it.value() < 5000) {
@@ -108,9 +99,6 @@ void AlarmPanel::onAlarmCleared(int channel)
         m_blinkTimer->stop();
         m_indicator->setStyleSheet("color: green; font-size: 18px; font-weight: bold;");
     }
-
-    if (m_db)
-        m_db->insertAlarm(channel, 0, 0, false, "cleared");
 }
 
 void AlarmPanel::blinkIndicator()
@@ -127,7 +115,6 @@ void AlarmPanel::addEntry(const QString &text, const QColor &bg)
     auto *item = new QListWidgetItem(text);
     item->setBackground(bg);
     m_list->insertItem(0, item);
-
-    while (m_list->count() > 100)  // 上限 100
+    while (m_list->count() > 100)
         delete m_list->takeItem(m_list->count() - 1);
 }
