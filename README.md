@@ -4,6 +4,8 @@
 >
 > **v1.3.0** · 53 单元测试 · 10 测试二进制 · 双平台 CI
 
+![实时连接与绘制](resources/gif/连接绘制.gif)
+
 ---
 
 ## 1. 功能特性
@@ -34,6 +36,8 @@
 | **ThresholdAlarm** | 每通道独立上下限 + 全局滞回防抖 |
 | **IFilter 接口** | 纯虚，支持通道选择性过滤 (`setChannels({0,2})`) |
 
+![过滤器与告警](resources/gif/过滤器管道和告警.gif)
+
 ### 可视化
 
 | 模块 | 功能 |
@@ -41,8 +45,12 @@
 | **实时曲线** | QPainter 双缓冲自绘，抽稀优化，滚轮缩放 (5s~120s)，鼠标拖拽平移 |
 | **FFT 频谱** | 256 点 Radix-2 FFT，25FPS 柱状图，Y 轴% + X 轴 Hz 标注 |
 | **通道显隐** | 图例点击切换，每通道独立 Y 轴范围，小波动不再被大范围压缩 |
+
+![通道显隐](resources/gif/通道信息显隐.gif)
 | **数据表格** | QAbstractTableModel + QTableView，100ms 节流刷新 |
 | **历史回放** | QSlider 时间轴 + 播放/暂停 + 1×/2×/5×/10× 速度 |
+
+![历史回放](resources/gif/历史回放.gif)
 
 ### 告警系统
 
@@ -71,6 +79,8 @@
 | **SQLite** | WAL 模式 + 100 条/批批量事务，QDataStream 序列化通道为 BLOB |
 | **告警记录** | alarms 表 (timestamp, channel, value, threshold, state) |
 | **CSV 导出** | 时间范围 + 通道选择 + Excel 兼容 |
+
+![表格导出](resources/gif/表格导出.gif)
 | **自动清理** | 超 7 天数据自动 DELETE |
 
 ---
