@@ -62,6 +62,7 @@ public:
     int rowCount() const;
     uint64_t minTimestamp() const;
     uint64_t maxTimestamp() const;
+    QSqlDatabase &dbHandle() { return m_db; }
 private:
     // 事务批量提交缓冲区
     void commitBatch();

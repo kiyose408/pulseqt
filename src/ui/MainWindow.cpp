@@ -181,7 +181,6 @@ void MainWindow::setupCentralArea()
     m_playbackChart = new RealTimeChart(this);
     m_playbackChart->setMinimumHeight(100);
     m_historyPlayer = new HistoryPlayer(this);
-    m_historyPlayer->setMaximumHeight(50);
     QWidget *playbackWidget = new QWidget(this);
     QVBoxLayout *pbLayout = new QVBoxLayout(playbackWidget);
     pbLayout->setContentsMargins(0, 0, 0, 0);
